@@ -1,0 +1,305 @@
+---
+title: "Step1: Generating_dataset_with_pseudobulks"
+author: "Aakanksha Singh"
+date: "2024-05-13"
+output: html_document
+---
+
+This is the first step of the Deconvolution Benchmarking pipeline. In this script 
+our aim is to 
+1. get the single cell data from the publicly available repositories and process it.
+2. Generate a countmatrix with bootstrapped single cell data.
+3. Generate 4 of such count matrices
+  a. PBMC from 10X chromium (For Gene Panel, Normalisation,Signature Matrix and Count matrix origin)
+  b. PBMC data from SmartSeq2 (For count matrix origin)
+  c. Test dataset of another kind (10X Chromium) AML
+  d. Test dataset of another kind (Smart Seq2) AML
+  
+Requirements for generating the pseudobulk samples: Each dataset for each type should have a minimum of 10 cells in the
+cell types that are being examined in the analysis ie., ( B cells, T cells, Monocytes and NK cells)
+
+```{r}
+# if (!require("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install(version = "3.19")
+# BiocManager::install("TENxPBMCData")
+# BiocManager::install("scater")
+# BiocManager::install("scran")
+# BiocManager::install("celldex")
+# update.packages(checkBuilt = TRUE, ask = FALSE)
+source("./functions.R")
+```
+
+# Dataset1: 10X Chromium PBMC data
+
+## Reading data, Annotating cell types and saving it (Only to be done once)
+```{r}
+# pbmc3k<-processing_sce(TENxPBMCData("pbmc3k"),"pbmc3k")
+# saveRDS(pbmc3k, file = "../intermediate_data/processed_sces/pbmc3k.rds")
+# 
+# pbmc4k<-processing_sce(TENxPBMCData("pbmc4k"),"pbmc4k")
+# saveRDS(pbmc4k, file = "../intermediate_data/processed_sces/pbmc4k.rds")
+#
+# pbmc8k<-processing_sce(TENxPBMCData("pbmc8k"),"pbmc8k")
+# saveRDS(pbmc8k, file = "../intermediate_data/processed_sces/pbmc8k.rds")
+# 
+# pbmc6k<-processing_sce(TENxPBMCData("pbmc6k"),"pbmc6k")
+# saveRDS(pbmc6k, file = "../intermediate_data/processed_sces/pbmc6k.rds")
+# 
+# liver<-processing_sce(ZhaoImmuneLiverData(),"liver")
+# saveRDS(liver, file = "../intermediate_data/processed_sces/liver.rds")
+```
+
+## Loading the Data and calculating the number of cells in each cell type
+```{r}
+pbmc3k <- readRDS("../intermediate_data/processed_sces/pbmc3k.rds")
+cell_count_pbmc3k <- as.data.frame(table(pbmc3k$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+pbmc4k <- readRDS("../intermediate_data/processed_sces/pbmc4k.rds")
+cell_count_pbmc4k <- as.data.frame(table(pbmc4k$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+pbmc6k <- readRDS("../intermediate_data/processed_sces/pbmc6k.rds")
+cell_count_pbmc6k <- as.data.frame(table(pbmc6k$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+pbmc8k <- readRDS("../intermediate_data/processed_sces/pbmc8k.rds")
+cell_count_pbmc8k <- as.data.frame(table(pbmc8k$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+
+# genes_pbmc8k =rownames(pbmc8k) %>% 
+#               as.data.frame()
+# write.csv(genes_pbmc8k, file = "../Data/Signature_matrices/custom_signature_pbmc8k_genes.csv", col.names = FALSE)
+# write.csv(safeTME %>% as.data.frame(),file = "../Data/Signature_matrices/safeTME.csv", col.names = FALSE)
+# lm22=read.delim("../Data/Signature_matrices/LM22_signature_matrix.txt")
+# write.csv(lm22,file ="../Data/Signature_matrices/LM22_signature_matrix.csv" )
+```
+
+```{r}
+dataset_included= c("pbmc3k","pbmc4k","pbmc6k","pbmc8k")
+cell_types= c("B cells","Monocytes","NK cells","T cells")
+bootstrap_value= 30
+#date="03072024"
+date=24022025
+data_type="pbmc_10x"
+```
+
+```{r}
+generating_bootstraped_datasets_10x <- function(dataset_included,
+                                            data_type,
+                                            cell_types,
+                                            bootstrap_value,
+                                            date)
+{  for (bootstrap in 1:bootstrap_value) 
+    {
+        for (dataset in dataset_included) 
+          {
+            var_name= paste0("cell_count_", dataset)
+            cell_count_table <- get(var_name)
+            sce_rds <- get(dataset)
+            cell_table <-data.frame("cell_type"= cell_types) %>% 
+                        left_join(cell_count_table, by = c("cell_type" = "cell_type")) %>% rowwise() %>% 
+                        mutate(inDeconv = as.integer(runif(1,min=10,max = Freq))) %>%  as.data.frame()
+            cell_table <- cell_table %>% mutate(inDeconv_Frac = inDeconv/sum(inDeconv))
+            for_the_loop<- generating_a_pseudobulk_sample(
+                                                           #sce_rds[rowData(sce_rds)$Symbol], 
+                                                           sce_rds,
+                                                           dataset,                              
+                                                           cell_table %>% pull(cell_type), 
+                                                           cell_table %>% pull(inDeconv), 
+                                                           perform_TPM_normalisation=FALSE)
+            
+           # Adding bootstrap value to the pseudobulks generated in each run
+            for_the_loop= for_the_loop %>%
+                dplyr::rename_with(~ paste0(.x,"_boot",bootstrap,".Raw"), -HUGO)
+ 
+        
+          if(dataset==dataset_included[1] && bootstrap==1)
+            {
+              deconv_table= for_the_loop
+              actual_cell_proportions= cell_table %>% 
+                             dplyr::select(cell_type,inDeconv,inDeconv_Frac) %>% 
+                             dplyr::rename(!!paste0(dataset,"_boot",bootstrap,".actual_values") := "inDeconv",
+                                           !!paste0(dataset,"_boot",bootstrap,".actual_frac") := "inDeconv_Frac")
+                                 
+            } else
+            {
+              deconv_table=merge(deconv_table, for_the_loop, by.x="HUGO",by.y="HUGO", all=TRUE)
+              actual_cell_proportions= left_join(actual_cell_proportions, 
+                                                 cell_table %>% 
+                                                 dplyr::select(cell_type,inDeconv,inDeconv_Frac) %>% 
+                                                 dplyr::rename(!!paste0(dataset,"_boot",bootstrap,".actual_values") := "inDeconv",
+                                                               !!paste0(dataset,"_boot",bootstrap,".actual_frac") := "inDeconv_Frac"),
+                                                 by=c("cell_type"="cell_type"))
+           }
+        }
+        print(paste("Bootstrap",bootstrap,"of",bootstrap_value,"completed"))
+      }
+  saveRDS(deconv_table,file = paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_pseudobulks_",date,".RData"))
+  saveRDS(actual_cell_proportions,file = paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_cell_proportions_",date,".RData"))  
+}
+```
+
+#### For 4 cell types#####
+```{r}
+generating_bootstraped_datasets_10x(dataset_included,
+                                            data_type,
+                                            cell_types,
+                                            bootstrap_value,
+                                            date)
+```
+
+
+#### For 3 cell types ####
+```{r}
+
+dataset_included= c("pbmc3k","pbmc4k","pbmc6k","pbmc8k")
+bootstrap_value= 30
+date=13102025
+data_type="pbmc_10x_for_epic"
+
+generating_bootstraped_datasets_10x(dataset_included,
+                                            data_type,  # i.e with 3 cell_types
+                                            c("B cells","NK cells","T cells"),
+                                            bootstrap_value,
+                                            date)
+```
+
+# With a max cell limit
+Generating a pseudobulk sample to see if the number of cells in a sample impacts the deconvolution accuracy
+```{r}
+dataset_included= c("pbmc4k","pbmc6k","pbmc8k")
+#cell_types= c("B cells","Monocytes","NK cells","T cells")
+cell_types=c("B cells","NK cells","T cells")
+bootstrap_value= 30
+#date="01102025"
+date="13102025"
+data_type="pbmc_for_epic"
+
+# max_cells=c(10,50,150)
+# min_cells=c(2,10,50)
+
+# per cell
+max_cells=c(4,125,1000)
+min_cells=c(2,25,200)
+
+# bootstrap=1
+# sample_size=2
+# dataset="pbmc6k"
+
+
+# generating_bootstraped_datasets_10x <- function(dataset_included,
+#                                             data_type,
+#                                             cell_types,
+#                                             bootstrap_value,
+#                                             date)
+
+
+  for (bootstrap in 1:bootstrap_value) 
+    { 
+      for (sample_size in 1:3)
+       {
+        for (dataset in dataset_included) 
+          {
+            var_name= paste0("cell_count_", dataset)
+            cell_count_table <- get(var_name)
+            sce_rds <- get(dataset)
+            cell_table <-data.frame("cell_type"= cell_types) %>% 
+                        left_join(cell_count_table, by = c("cell_type" = "cell_type")) %>% rowwise() %>% 
+              mutate(inDeconv = sample(min_cells[sample_size]:ifelse(max(.data$Freq) < max_cells[sample_size], max(.data$Freq), max_cells[sample_size]), size = n(), replace = FALSE)) %>% as.data.frame()
+
+            cell_table <- cell_table %>% mutate(inDeconv_Frac = inDeconv/sum(inDeconv))
+            for_the_loop<- generating_a_pseudobulk_sample(sce_rds[rowData(sce_rds)$Symbol], 
+                                                           paste0(dataset,".",max_cells[sample_size]),                              
+                                                           cell_table %>% pull(cell_type), 
+                                                           cell_table %>% pull(inDeconv), 
+                                                           perform_TPM_normalisation=FALSE)
+            
+           # Adding bootstrap value to the pseudobulks generated in each run
+            for_the_loop= for_the_loop %>%
+                dplyr::rename_with(~ paste0(.x,"_boot",bootstrap,".Raw"), -HUGO)
+ 
+        
+          if(dataset==dataset_included[1] && bootstrap==1)
+            {
+              deconv_table= for_the_loop
+              actual_cell_proportions= cell_table %>% 
+                             dplyr::select(cell_type,inDeconv,inDeconv_Frac) %>% 
+                             dplyr::rename(!!paste0(dataset,".",max_cells[sample_size],"_boot",bootstrap,".actual_values") := "inDeconv",
+                                           !!paste0(dataset,".",max_cells[sample_size],"_boot",bootstrap,".actual_frac") := "inDeconv_Frac")
+                                 
+            } else
+            {
+              deconv_table=merge(deconv_table, for_the_loop, by.x="HUGO",by.y="HUGO", all=TRUE)
+              actual_cell_proportions= left_join(actual_cell_proportions, 
+                                                 cell_table %>% 
+                                                 dplyr::select(cell_type,inDeconv,inDeconv_Frac) %>% 
+                                                 dplyr::rename(!!paste0(dataset,".",max_cells[sample_size],"_boot",bootstrap,".actual_values") := "inDeconv",
+                                                               !!paste0(dataset,".",max_cells[sample_size],"_boot",bootstrap,".actual_frac") := "inDeconv_Frac"),
+                                                 by=c("cell_type"="cell_type"))
+           }
+        }
+        print(paste("Bootstrap",bootstrap,"of",bootstrap_value,"and Sample size",sample_size,"of",length(max_cells),"completed"))
+      }
+  }
+  
+  saveRDS(deconv_table,file = paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_pseudobulks_spot_size_",date,".RData"))
+  saveRDS(actual_cell_proportions,file = paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_cell_proportions_spot_size_",date,".RData")) 
+```
+
+
+```{r}
+# df=readRDS("../intermediate_data/bootstraped_pseudobulks/pbmc_pseudobulks_13052024.RData")
+# colnames(df)
+```
+
+## AML Datasets to go in the Supplementary:
+To make our results reproducible on a different dataset: we use the AML dataset
+
+# Dataset3: 10X Chromium AML data
+```{r}
+AML0110X <- readRDS("../intermediate_data/processed_sces/AML0110X.rds")
+cell_count_AML0110X <- as.data.frame(table(AML0110X$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+AML0210X <- readRDS("../intermediate_data/processed_sces/AML0210X.rds")
+cell_count_AML0210X <- as.data.frame(table(AML0210X$cell)) %>% 
+                       dplyr::rename("cell_type"="Var1")
+
+AML0310X <- readRDS("../intermediate_data/processed_sces/AML0310X.rds")
+cell_count_AML0310X <- as.data.frame(table(AML0310X$cell)) %>% 
+                       dplyr::rename("cell_type"="Var1")
+
+signature_reference_aml_10X= readRDS("../intermediate_data/processed_sces/AML0110X.rds")
+```
+
+
+```{r}
+dataset_included= c("AML0110X","AML0210X","AML0310X")
+cell_types= c("B cells","Monocytes","NK cells","T cells")
+bootstrap_value= 30
+date="03072024"
+data_type="aml_10x"
+
+generating_bootstraped_datasets_10x(dataset_included,
+                                            data_type,
+                                            cell_types,
+                                            bootstrap_value,
+                                            date)
+```
+
+```{r}
+dataset_included= c("AML0110X","AML0210X","AML0310X")
+cell_types= c("B cells","NK cells","T cells") # for epic
+bootstrap_value= 30
+date="13102025"
+data_type="aml_10x_for_epic"
+
+generating_bootstraped_datasets_10x(dataset_included,
+                                            data_type,
+                                            cell_types,
+                                            bootstrap_value,
+                                            date)
+```
