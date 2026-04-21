@@ -1,0 +1,276 @@
+---
+title: "Testing multiplex results against deconvolution from all methodologies"
+author: "Aakanksha Singh"
+date: "2024-02-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+source("./functions.R")
+library(tidyverse)
+library(SummarizedExperiment)
+library(immunedeconv)
+```
+
+# The raw data used in this script can be made available upon request from the authors. The end results of this script are provided.
+
+```{r}
+load("~/mnt_TLS_project/GeoMx/Summarised_geomx_object/glioma_spatial_object")
+#load("~/mnt_TLS_project/Single_cell_reference_from_brain/updated_glioma_sce")
+raw_data = as.matrix(assay(glioma_spatial_object))
+
+# Keeping only complete cases
+raw_data_complete_cases <- raw_data[complete.cases(raw_data[,]),]
+
+# Quantile normalisation
+norm = normalize.quantiles(raw_data_complete_cases)
+colnames(norm) = colnames(raw_data_complete_cases)
+rownames(norm) = rownames(raw_data_complete_cases)
+
+# Sample annotation table 
+sample_annot= as.data.frame(colData(glioma_spatial_object))
+
+length(unique(sample_annot$Patient_id))
+length(unique(sample_annot$E_nummer))
+
+```
+
+# Generating a count matrix from the Summarised Experiment object
+```{r}
+spatial_mat <- assay(glioma_spatial_object) %>% 
+               as.data.frame() %>% 
+               mutate(across(-1, ~ (.x / sum(.x, na.rm = TRUE)) * 1e6)) %>% 
+               as.matrix()
+              
+
+spatial_df <- spatial_mat %>% 
+              as.data.frame() %>% 
+              rownames_to_column(var = "HUGO")
+
+#colData(glioma_spatial_object)
+```
+
+# Deconvoluting with Quantiseq, EPIC and MCP counter from the ImmuneDecon package with their respective Signature matrices or Marker genes
+Cons: Do not accept S4 objects for deconvolution and hence the S4 objects have to be converted to matrix structure, no scope for generating a custom signature
+Pro: Runs very quickly, user friendly
+```{r}
+quntiseq_res <- deconvolute(spatial_mat, "quantiseq",tumor = TRUE) %>% 
+                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
+                dplyr::group_by(cell_type) %>% 
+                dplyr::summarise_if(is.numeric, sum) %>% 
+                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                mutate(Deconvolution_type="quanTIseq")
+
+
+mcp_counter_res <- deconvolute(spatial_mat, "mcp_counter",tumor = TRUE) %>% 
+                    mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                    dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
+                    dplyr::group_by(cell_type) %>% 
+                    dplyr::summarise_if(is.numeric, sum) %>% 
+                    min_max_normalisation_for_mcp(.,"GBM","") %>% 
+                    pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                    mutate(Deconvolution_type="MCPcounter")
+
+epic_res <- deconvolute(spatial_mat, "epic",tumor = TRUE) %>% 
+                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
+                dplyr::group_by(cell_type) %>% 
+                dplyr::summarise_if(is.numeric, sum) %>% 
+                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                mutate(Deconvolution_type="EPIC")
+```
+
+# Deconvolution with Spotlight using the custom single cell dataset
+Cons: Memory intensive
+Pro: Easy to customise and can use single cell data to generate a custom matrix
+Note: set the cell_type to be used as colLabel in the SingleCellExperiment object in the column labelled as 'cell'
+```{r}
+# Custom Signature
+spatial_deconv_res <- read_csv("~/mnt_TLS_project/analysis_TLS_heterogeneity_KI/Deconvolution_AS/Intermediate_data/sp_deconvolution_result_24112023.csv", col_names = TRUE) %>% 
+                dplyr::select(-"...1") %>% 
+                dplyr::rename("Deconvolution_proportions"="fraction") %>% 
+                dplyr::rename("Sample_name"="sample") %>% 
+                dplyr::mutate(cell_type=ifelse(cell_type=="Mature T cell","T cell",cell_type)) %>% 
+               dplyr::filter(cell_type %in% c("T cell","B cell") ) %>% 
+               dplyr::mutate(Deconvolution_proportions=(Deconvolution_proportions/100)) %>% 
+               dplyr::mutate(Deconvolution_type="SpatialDecon \ncustom signature") %>% 
+               dplyr::select(cell_type,Sample_name,Deconvolution_proportions,Deconvolution_type)
+
+# Default Signature
+spatial_decon_default=spatialdecon(norm,
+       bg = 0.01,
+       X = safeTME)
+
+spatial_decon_default_res=as.data.frame(spatial_decon_default$prop_of_all) %>% 
+               rownames_to_column(var="cell_type") %>% 
+               mutate(cell_type= ifelse(grepl("^T",cell_type)==TRUE,"T cell",cell_type)) %>%
+               mutate(cell_type= ifelse(grepl("^B.",cell_type)==TRUE,"B cell",cell_type)) %>% 
+               mutate(cell_type= ifelse(grepl("macrophages",cell_type)==TRUE,"Macrophage",cell_type)) %>% 
+              dplyr::filter(cell_type %in% c("B cell","T cell","Macrophage") ) %>% 
+              dplyr::group_by(cell_type) %>% 
+              dplyr::summarise_if(is.numeric, sum) %>% 
+              pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+              mutate(Deconvolution_type="SpatialDecon")
+```
+
+# Multiplex data
+```{r}
+# Multiplex layers mapped to the Nanostring Rois
+roi_mapping <- read_delim("~/mnt_TLS_project/TLS_screening_results/ROI_mapping_26012024.csv") %>% 
+               dplyr::mutate(Batch_id= case_when(Scan_ID=="GBM"~"geomx_tap",
+                                                 Scan_ID=="20120222 Glioma1 ST run"~"geomx_20122022",
+                                                 Scan_ID=="21022023 Glioma2 ST run_slide4" ~"geomx_22022023",
+                                                 grepl("DSP-1001660019328",Scan_ID)==TRUE ~ "geomx_20102023" ),
+                             additional_text= ifelse(str_sub(Scan_ID,-3,-3) %in% c("A","B"),"s9", ifelse(str_sub(Scan_ID,-3,-3) %in% c("C","D"),"s15",NA)),
+                             Location=ifelse(grepl("TLS",Location),"TLS","control")) %>% 
+              dplyr::mutate(Sample_name= paste0(Batch_id,".","GBM_",ROI_ID,"_",Location),
+                            Sample_name= ifelse(is.na(additional_text)==FALSE,paste(Sample_name,additional_text, sep="_"), Sample_name)) %>% 
+              dplyr::select(PID, Cluster, "Multiplex Layer", Sample_name) %>% 
+              left_join(as.data.frame(colData(glioma_spatial_object)) %>% dplyr::select(Sample_name,Nuclei), by=c("Sample_name"="Sample_name")) %>% 
+              dplyr::rename("Nuclei_from_GeoMx"="Nuclei")
+
+# getting just the are column in the poroximity density analysis data table
+area_examined_in_proximity_density_analysis= read_csv("~/mnt_TLS_project/TLS_screening_results/proximity_density_additional.csv") %>% 
+                                             left_join(roi_mapping,by=c("ID.number"="PID","area_name"="Multiplex Layer")) %>% 
+                                             dplyr::filter(is.na(Sample_name)==FALSE & Name =="Area Analyzed (µm²)") %>% 
+                                             distinct() %>% 
+                                             dplyr::select(Sample_name,Value,ID.number,Nuclei_from_GeoMx) %>% 
+                                             dplyr::rename("area_analysed_per_micrometer"="Value")
+
+# Getting the proximity density values and joining the other tables to it to compare and plot
+proximity_density <-read_csv("~/mnt_TLS_project/TLS_screening_results/proximity_density_additional.csv") %>% 
+                    left_join(roi_mapping,by=c("ID.number"="PID","area_name"="Multiplex Layer")) %>% 
+                    dplyr::filter(is.na(Sample_name)==FALSE & Name %in% c("CD20+ Count", "CD3+ Count")) %>% 
+                    distinct() %>%
+                    left_join(area_examined_in_proximity_density_analysis,by=c("Sample_name"="Sample_name","ID.number"="ID.number")) %>% 
+                    dplyr::mutate(multiplex_values_per_unit_area=(Value/area_analysed_per_micrometer)) %>% 
+                    dplyr::mutate(cell_type=ifelse(Name=="CD3+ Count","T cell", ifelse(Name=="CD20+ Count","B cell",Name))) %>%
+                    dplyr::rename("multiplex_value"="Value") %>% 
+                    dplyr::select(Name,cell_type,multiplex_value,multiplex_values_per_unit_area,Sample_name,area_analysed_per_micrometer,Nuclei_from_GeoMx.x) %>% 
+  dplyr::rename("Nuclei_from_GeoMx"="Nuclei_from_GeoMx.x")
+
+```
+
+```{r}
+library(ggthemes)
+mytheme=list(theme_foundation(base_size=14, base_family="sans")
+       + theme(plot.title = element_text(face = "bold",
+                                         size = rel(1.2), hjust = 0.5),
+               text = element_text(),
+               panel.background = element_rect(colour = NA),
+               plot.background = element_rect(colour = NA),
+               panel.border = element_rect(colour = NA),
+               axis.title = element_text(face = "bold",size = rel(1)),
+               axis.title.y = element_text(angle=90,vjust =2),
+               axis.title.x = element_text(vjust = -0.2),
+               axis.text = element_text(), 
+               axis.line.x = element_line(colour="black"),
+               axis.line.y = element_line(colour="black"),
+               axis.ticks = element_line(),
+               panel.grid.major = element_line(colour="#f0f0f0"),
+               panel.grid.minor = element_blank(),
+               legend.key = element_rect(colour = NA),
+               legend.position = "bottom",
+               legend.direction = "horizontal",
+               legend.key.size= unit(0.2, "cm"),
+               legend.spacing = unit(0, "cm"),
+               legend.title = element_text(face="italic"),
+               plot.margin=unit(c(10,5,5,5),"mm"),
+               strip.background=element_rect(colour="#f0f0f0",fill="#f0f0f0"),
+               strip.text = element_text(face="bold")
+       ))
+```
+
+```{r}
+ sp_res_df= rbind(quntiseq_res,epic_res,mcp_counter_res,spatial_decon_default_res) %>% 
+ left_join(proximity_density,by=c("Sample_name"="Sample_name","cell_type"="cell_type"))
+
+nanostring_data=sp_res_df %>% 
+drop_na() %>% 
+mutate(Deconvolution_type=factor(Deconvolution_type, levels=c("quanTIseq","EPIC","MCPcounter","SpatialDecon"))) %>% 
+mutate(Deconvolution_cells= Deconvolution_proportions*Nuclei_from_GeoMx) %>% 
+ ggplot(aes(x=(multiplex_value),y=Deconvolution_cells))+
+  geom_point(aes(color=cell_type), size=2) +
+  stat_cor(method = "pearson",size=4)+
+  scale_color_manual (values = c ( "B cell"  =  "#8DD3C7" , 
+                                 "Macrophage"  =  "#FFFFB3",
+                                 "T cell"  =  "#FDB462")) +
+    geom_smooth(method = "lm", formula = y~x, col = "black") +
+    ylab("Deconvolution proportions*\n number of cells in the ROI") +
+    xlab(" No. of cell from Multiplex") +
+    #ylim(0,1)+
+    facet_wrap("Deconvolution_type", nrow = 1)+
+    mytheme+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+save(nanostring_data,file = paste0("../Results/Figure_rds/nanostring_spatial_corplot.RData"))
+
+max(sp_res_df %>% filter(is.na(Nuclei_from_GeoMx)==FALSE) %>% pull(Nuclei_from_GeoMx))
+```
+
+# Getting percentages of B cells , T cell and macrophages from a different sheet ( Need to confirm that this data is what it seems to me)
+```{r}
+cell_counts_multiplex= read_xlsx("~/mnt_TLS_project/TLS_screening_results/cell quantification 2nd.xlsx") %>% 
+                       dplyr::select(Scan_ID,`Multiplex Layer`,"% CD20","% CD3","% CD163") %>% 
+                       pivot_longer(cols = c(`% CD20`,`% CD3`,`% CD163`), names_to = "Cell_marker",values_to = "Percentage") %>% 
+                       mutate(cell_type=case_when(Cell_marker=="% CD20"~"B cell",
+                                                  Cell_marker=="% CD3"~"T cell",
+                                                  Cell_marker=="% CD163"~ "Macrophage"))
+
+cell_counts_multiplex_mcp = cell_counts_multiplex %>% 
+                            dplyr::filter(`Multiplex Layer` !="-") %>% 
+                            dplyr::select(-"Multiplex Layer") %>% 
+                            pivot_wider(names_from = "Scan_ID", values_from = Percentage) %>%
+                            select(where(~ !all(is.na(.))),-Cell_marker) %>%  # remove all empty columns
+                            min_max_normalisation_for_mcp(.,"DSP","") %>% 
+                            pivot_longer(cols = contains("DSP"),names_to = "Scan_ID", values_to = "Percentage") %>% 
+                            left_join(cell_counts_multiplex %>% 
+                                      dplyr::filter(`Multiplex Layer` !="-") %>% 
+                                      dplyr::select(Scan_ID,`Multiplex Layer`,Cell_marker,cell_type) %>% 
+                                      distinct(), 
+                                      by=c("Scan_ID"="Scan_ID","cell_type"="cell_type")) %>% 
+                            dplyr::select(colnames(cell_counts_multiplex))
+
+sp_res_df_mcp=sp_res_df %>% 
+              drop_na() %>% 
+              dplyr::filter(Deconvolution_type=="MCPcounter") %>% 
+              select(cell_type,Sample_name,Deconvolution_proportions,Deconvolution_type) %>% 
+              left_join(colData(glioma_spatial_object) %>% as.data.frame() %>% select(Sample_name,SampleID),by=c("Sample_name"="Sample_name")) %>% 
+              left_join(cell_counts_multiplex_mcp, by=c("SampleID"="Scan_ID","cell_type"="cell_type"))
+
+percentage_multiplex_nanostring=sp_res_df %>% 
+drop_na() %>% 
+dplyr::filter(Deconvolution_type!="MCPcounter") %>% 
+select(cell_type,Sample_name,Deconvolution_proportions,Deconvolution_type) %>% 
+left_join(colData(glioma_spatial_object) %>% as.data.frame() %>% select(Sample_name,SampleID),by=c("Sample_name"="Sample_name")) %>% 
+left_join(cell_counts_multiplex, by=c("SampleID"="Scan_ID","cell_type"="cell_type")) %>% 
+rbind(sp_res_df_mcp) %>% 
+mutate(Deconvolution_type=ifelse(Deconvolution_type=="MCPcounter","MCPcounter*",Deconvolution_type)) %>% 
+mutate(Deconvolution_type=factor(Deconvolution_type, levels=c("quanTIseq","EPIC","MCPcounter*","SpatialDecon")))
+  
+  
+percentage_multiplex_plt=percentage_multiplex_nanostring %>% 
+  ggplot(aes(x=Percentage,y=Deconvolution_proportions))+
+  geom_point(aes(color=cell_type), size=2) +
+  stat_cor(method = "pearson",size=4)+
+  scale_color_manual (values = c ( "B cell"  =  "#8DD3C7" , 
+                                 "Macrophage"  =  "#FFFFB3",
+                                 "T cell"  =  "#FDB462")) +
+    geom_smooth(method = "lm", formula = y~x, col = "black") +
+    ylab("Deconvolution proportions") +
+    xlab("Percentage from Multiplex") +
+    #ylim(0,1)+
+    facet_grid(~Deconvolution_type)+
+    mytheme+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(filename = "../manuscript/figs/nanostring_vs_multiplex_updated_mcp.png", plot=percentage_multiplex_plt, width = 9, height = 8)
+
+write_rds(percentage_multiplex_plt, file ="../manuscript/figs/nanostring_vs_multiplex_updated_mcp.RDS" )
+
+```
