@@ -1,0 +1,531 @@
+---
+title: "NS_v_Visium_4_samples"
+output: html_document
+date: "2025-04-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(SpatialExperiment)
+library(Seurat)
+library(ggplot2)
+library(SpatialDecon)
+library(RColorBrewer)
+library(ggpubr)
+library(immunedeconv)
+library(DropletUtils)
+library(tidyverse)
+library(ggpubr)
+```
+
+
+```{r}
+setClassUnion("ExpData", c("matrix", "SummarizedExperiment"))
+```
+
+```{r}
+source("./0_functions.R")
+```
+
+# The raw data used in this scipt will be made available upon request upon authors. The results of this script are provided.
+# Important note: certain sections of the script that contain patient identifiers are redacted.
+
+# Nanostring data
+```{r}
+nanostring<- read.csv("~/PATH/Results/raw_data/All_Data_WTA_probe_QC.csv",header = TRUE)
+
+nanostring_df=nanostring[,c("TargetName","GBM.003.Full.ROI","GBM.002.Full.ROI","GBM.007.Full.ROI","GBM.004.Full.ROI","GBM.006.Full.ROI","GBM.014.Full.ROI","BM.002.Full.ROI","BM.001.Full.ROI","BM.003.Full.ROI","BM.006.Full.ROI","BM.004.Full.ROI","BM.005.Full.ROI")] %>% 
+dplyr::rename("Redacted_Tumor_GBM_003"="GBM.003.Full.ROI",
+              "Redacted_TLS_GBM_002"="GBM.002.Full.ROI",
+              "Redacted_Tumor_GBM_007"="GBM.007.Full.ROI",
+              "Redacted_TLS_GBM_004"="GBM.004.Full.ROI",
+              "Redacted_TLS_GBM_006"="GBM.006.Full.ROI",
+              "Redacted_TLS_GBM_014"="GBM.014.Full.ROI",
+              "Redacted_Tumor_BM_002"="BM.002.Full.ROI",
+              "Redacted_TLS_BM_002"="BM.001.Full.ROI",
+              "Redacted_TLS_BM_003"="BM.003.Full.ROI",
+              "Redacted_Tumor_BM.006"="BM.006.Full.ROI",
+              "Redacted_TLS_BM.004"="BM.004.Full.ROI",
+              "Redacted_TLS_BM.005"="BM.005.Full.ROI")
+
+```
+
+# Visium Data
+```{r}
+visium_samples_reading<-function(file_folder,annotated_file,E_nummer)
+{
+      colnames(annotated_file)=c("Barcode","TLS")
+      output_matrix <-read10xCounts(paste0(file_folder,"filtered_feature_bc_matrix" ))
+    
+      cdata=colData(output_matrix) %>% 
+            as.data.frame() %>% 
+            left_join(annotated_file,by=c("Barcode"="Barcode")) %>% 
+            mutate(E_nummer=E_nummer) %>% 
+            mutate(TLS=ifelse(is.na(TLS)==FALSE & TLS != "Tumor_only","TLS",TLS)) %>% 
+            mutate(Spotname=paste(E_nummer,TLS,Barcode, sep = "_")) %>% 
+            DataFrame()
+      
+      colData(output_matrix)=cdata
+      output_matrix_filtered=output_matrix[,is.na(colData(output_matrix)$TLS)==FALSE]
+      colnames(output_matrix_filtered)=colData(output_matrix_filtered)$Spotname
+      return(output_matrix_filtered)
+}
+
+#Sample 1
+sample1<-"~/PATH/Visium02_S1/outs/"
+sample1_annotated_file <- read.csv(paste0(sample1,"Visium02_S1_TLSannotation_loupe.csv"), header = TRUE)
+
+# Sample2
+sample2<-"~/PATH/Visium02_S2/outs/"
+sample2_annotated_file <-read.csv(paste0(sample2,"Visium02_S2_TLSannotation_loupe.csv"), header = TRUE)
+
+# Sample3
+sample3<-"~/PATH/Visium02_S3/outs/"
+sample3_annotated_file <-read.csv(paste0(sample3,"Visium02_S3_TLSannotation_loupe.csv"), header = TRUE)
+
+#Sample4
+sample4<-"~/PATH/Visium02_S4/outs/"
+sample4_annotated_file <-read.csv(paste0(sample4,"Visium02_S4_TLSannotation_loupe.csv"), header = TRUE)
+
+visium_obj= cbind(visium_samples_reading(sample1,sample1_annotated_file,"Redacted"),
+                 visium_samples_reading(sample2,sample2_annotated_file,"Redacted"),
+                 visium_samples_reading(sample3,sample3_annotated_file,"Redacted"),
+                 visium_samples_reading(sample4,sample4_annotated_file,"Redacted"))
+
+rownames(visium_obj)=rowData(visium_obj)$Symbol
+
+visium_mat=as.matrix(assay(visium_obj))
+```
+
+# Deconvolution
+```{r}
+# mat= as.matrix(nanostring_df %>% filter(TargetName %in% common_genes) %>% column_to_rownames(var="TargetName"))
+# bg=0.01
+
+# mat=visium_mat[rownames(visium_mat) %in% common_genes,]
+# bg=0.1
+# type="visium"
+
+
+deconvolute_real_data=function(mat,bg,type, rctd_mode="multi")
+{
+# TPM like normalisaion
+mat_tpm_like= apply(mat, 2, function(x) x * 1000000 / sum(x))
+
+# Calculate Q3 for each column
+q3_values <- apply(mat, 2, function(x) quantile(x, 0.75))
+q3_geometric_mean=exp(mean(log(q3_values)))
+mat_q3_norm= sweep(mat, 2, q3_values, FUN = "/") * q3_geometric_mean
+
+
+quntiseq_res <- deconvolute(mat_tpm_like, "quantiseq",tumor = TRUE) %>% 
+                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                dplyr::group_by(cell_type) %>% 
+                dplyr::summarise_if(is.numeric, sum) %>% 
+                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                mutate(Deconvolution_type="quanTIseq")
+
+
+ mcp_counter_res <- deconvolute(mat_tpm_like, "mcp_counter",tumor = TRUE) %>% 
+                    mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                    dplyr::group_by(cell_type) %>% 
+                    dplyr::summarise_if(is.numeric, sum) %>% 
+                    min_max_normalisation_for_mcp(.,"E_","") %>% 
+                    #mutate(across(contains("E_"), ~./sum(.))) %>% 
+                    pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                    mutate(Deconvolution_type="MCPcounter")
+
+ epic_res <- deconvolute(mat_tpm_like, "epic",tumor = TRUE) %>% 
+                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>%
+                dplyr::group_by(cell_type) %>% 
+                dplyr::summarise_if(is.numeric, sum) %>% 
+                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                mutate(Deconvolution_type="EPIC")
+ 
+ spatial_decon_result= spatialdecon(mat_tpm_like,
+                                 bg = bg,
+                                 X = safeTME)
+
+  spatial_decon_res=as.data.frame(spatial_decon_result$prop_of_all) %>% 
+                     rownames_to_column(var="cell_type") %>% 
+                     mutate(cell_type= ifelse(grepl("^T",cell_type)==TRUE,"T cell",cell_type)) %>%
+                     mutate(cell_type= ifelse(grepl("^B.",cell_type)==TRUE,"B cell",cell_type)) %>% 
+                     mutate(cell_type= ifelse(grepl("macrophages",cell_type)==TRUE,"Macrophage",cell_type)) %>% 
+                     dplyr::group_by(cell_type) %>% 
+                     dplyr::summarise_if(is.numeric, sum) %>% 
+                     pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                     mutate(Deconvolution_type="SpatialDecon \ndefault signature")
+  
+  # With reference based tools
+  signature_reference <- readRDS("../intermediate_data/processed_sces/pbmc8k.rds")
+
+  spotligh_res <- spotlight_decon(mat_tpm_like, signature_reference, mean_auc_cutoff = 0.8) %>% 
+                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                #dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
+                dplyr::group_by(cell_type) %>%
+                dplyr::summarise_if(is.numeric, sum) %>% 
+                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>%
+                mutate(Deconvolution_type="SPOTlight")
+
+  
+ rctd_res <-rctd_decon(mat_tpm_like %>% as.data.frame() %>% rownames_to_column(var="HUGO"), signature_reference, rctd_mode=rctd_mode) %>% 
+            mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+            #dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
+            dplyr::group_by(cell_type) %>%
+            dplyr::summarise_if(is.numeric, sum) %>% 
+            pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>%
+            mutate(Deconvolution_type="RCTD")
+
+ cell2loc_res <- read_csv(paste0("../intermediate_data/cell2location_res/ns_vs_vi_",type,"_cell2loc_res.csv")) %>% 
+                dplyr::rename("cell_type"="...1") %>% 
+                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                #dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
+                dplyr::group_by(cell_type) %>%
+                dplyr::summarise_if(is.numeric, sum) %>% 
+                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>%
+                mutate(Deconvolution_type="cell2location")
+
+  res_df= rbind(quntiseq_res,epic_res,mcp_counter_res,spotligh_res, spatial_decon_res,rctd_res,cell2loc_res) %>% 
+          mutate(cell_type = case_when(
+          cell_type %in% c("Macrophage M1", "Macrophage M2") ~ "Macrophage",
+          cell_type %in% c("monocytes.C", "monocytes.NC.I") ~ "Monocyte",
+          cell_type == "NK" ~ "NK cell",
+          cell_type == "endothelial.cells" ~ "Endothelial cell",
+          cell_type == "fibroblasts" ~ "Fibroblast cell",
+          cell_type %in% c("mDCs", "pDCs") ~ "Dendritic cell",
+          cell_type == "mast" ~ "Mast cell",
+          cell_type == "plasma" ~ "Plasma cell",
+          cell_type == "neutrophils" ~ "Neutrophil",
+          TRUE ~ cell_type )) %>% 
+            dplyr::group_by(Deconvolution_type,Sample_name,cell_type) %>% 
+                     dplyr::summarise_if(is.numeric, sum)
+  return(res_df)
+}
+```
+
+```{r}
+# Selecting common genes to mitigate the impcat caused by having different gene panels
+common_genes=intersect(nanostring_df$TargetName,rownames(visium_mat))
+
+deconv_ns= deconvolute_real_data(as.matrix(nanostring_df %>% filter(TargetName %in% common_genes) %>% column_to_rownames(var="TargetName")),0.01,"nanostring")
+deconv_vi=deconvolute_real_data(visium_mat[rownames(visium_mat) %in% common_genes,],0.1,"visium", rctd_mode="full") 
+```
+
+```{r}
+df=rbind(deconv_ns %>% mutate("Platform"="Nanostring GeoMx® DSP"),
+      deconv_vi %>% mutate("Platform"="10x Visium"))%>%
+      mutate(Patient_id=str_sub(Sample_name,0,13))%>%
+      mutate(Patient=case_when(Patient_id=="Redacted"~"P1",
+                               Patient_id=="Redacted"~"P2",
+                               Patient_id=="Redacted"~"P3",
+                               Patient_id=="Redacted"~"P4"))%>%
+    mutate(Deconvolution_type=ifelse(Deconvolution_type=="SpatialDecon \ndefault signature","SpatialDecon",Deconvolution_type),
+           Deconvolution_type=ifelse(Deconvolution_type=="MCPcounter","MCPcounter*",Deconvolution_type))
+```
+
+```{r}
+df_intermediate <- df %>% 
+                   mutate(Sample_name = paste0(Patient, "_", str_replace(Sample_name, "^([^_]*_){3}", ""))) %>% 
+                   select(-Patient_id)
+
+saveRDS(df_intermediate,"../intermediate_data/nanostring_vs_visium_data/ns_vs_vi_visium_result.RData")
+```
+
+# For Plotting: 
+```{r}
+df_intermediate= readRDS("../intermediate_data/nanostring_vs_visium_data/ns_vs_vi_visium_result.RData")
+
+plt=df_intermediate %>% 
+mutate(Tissue_type=ifelse(str_sub(Sample_name,4,6)=="TLS","Immune_cell_rich","Tumor")) %>% 
+filter(Tissue_type=="Immune_cell_rich") %>% 
+#mutate(Patient=str_sub(Sample_name,1,13)) %>% 
+filter(cell_type %in% c("B cell","T cell") ) %>% 
+mutate(cell_type=factor(cell_type, levels=c("B cell","T cell","Monocyte","NK cell"))) %>% 
+mutate(Deconvolution_type=factor(Deconvolution_type,levels=c("quanTIseq","EPIC","MCPcounter*","SPOTlight","SpatialDecon","RCTD","cell2location")))%>%
+ggplot(aes(x=Patient,y=Deconvolution_proportions, color=Platform))+
+       #geom_point(aes(color=cell_type, shape=), size=2) +
+       geom_boxplot(outliers = FALSE)+
+       scale_color_manual(values = c ("Nanostring GeoMx® DSP"="#00b4d8",
+                          "10x Visium"="#ff758f")) +
+      # scale_fill_manual(values = c ("Nanostring GeoMx® DSP"="#00b4d8",
+      #                     "10x Visium"="#ff758f")) +
+        # scale_shape_manual(values=c(0,1,2,3, 16, 17,11,4,8)) + theme(plot.title = element_text(hjust = 0.5)) +
+        theme(axis.text.y   = element_text(size=14),
+              axis.text.x   = element_text(size=14),
+              axis.title.y  = element_text(size=14),
+              axis.title.x  = element_text(size=14),
+              panel.background = element_blank(),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              axis.line = element_line(colour = "#C0C0C0"),
+              panel.border = element_rect(colour = "#C0C0C0", fill=NA, size=1)) +
+        ylab("Predicted proportions") +
+        xlab("Patient") +
+        ylim(0,1)+
+        facet_grid(rows = vars(cell_type), cols = vars(Deconvolution_type))+
+        #stat_compare_means(aes(group=Platform),method = "wilcox.text") +
+        mytheme
+
+
+ggsave(filename = "../manuscript/figs/Visium_vs_Nanostring_inhouse.png",plot = last_plot(), width = 10, height = 7, units = "in", dpi = 600)
+
+write_rds(plt, file = "../manuscript/figs/Visium_vs_Nanostring_inhouse.RData")
+
+```
+
+
+```{r}
+# res=read_rds("../manuscript/figs/Visium_vs_Nanostring_inhouse.RData")
+# 
+# res_df=res$data %>% 
+#   mutate(Platform=ifelse(Platform=="Nanostring GeoMx DSP","GeoMx®",Platform)) %>% 
+#   mutate(Platform=ifelse(Platform=="10x Visium","Visium",Platform)) %>% 
+#   ggplot(aes(x=Patient,y=Deconvolution_proportions, fill=Platform))+
+#        #geom_point(aes(color=cell_type, shape=), size=2) +
+#        geom_boxplot()+
+#        scale_fill_manual(values = c ("GeoMx®"="#00b4d8",
+#                           "Visium"="#ff758f")) +
+#   scale_color_manual(values = c ("GeoMx®"="#00b4d8",
+#                           "Visium"="#ff758f")) +
+#         # scale_shape_manual(values=c(0,1,2,3, 16, 17,11,4,8)) + theme(plot.title = element_text(hjust = 0.5)) +
+#         # theme(axis.text.y   = element_text(size=14),
+#         #       axis.text.x   = element_text(size=14),
+#         #       axis.title.y  = element_text(size=14),
+#         #       axis.title.x  = element_text(size=14),
+#         #       panel.grid.major = element_blank(),
+#         #       panel.grid.minor = element_blank(),
+#         #       axis.line = element_line(colour = "#C0C0C0"),
+#         #       panel.border = element_rect(colour = "#C0C0C0", fill=NA, size=1)) +
+#         ylab("Predicted proportions") +
+#         xlab("Patient") +
+#         ylim(0,1)+
+#         facet_grid(rows = vars(cell_type), cols = vars(Deconvolution_type))+
+#         stat_compare_means(aes(group=Platform),method = "t.test")+
+#         mytheme
+# write_rds(res_df, file = "../manuscript/figure_assembly_scripts/fig_origin_of_count_matrix/ns_vs_vi_deconvolution.RData")
+```
+
+
+# Testing a different deconvolution on visium for correrelation
+```{r}
+# source("./0.3_supplementary_function_vs_vs_ns_comparison.R")
+# 
+# visium_data <- get_visium_counts() %>% rename_all(~ paste(., "Vi", sep = "_"))
+# nanostring_counts <- get_nanostring_counts() %>% rename_all(~ paste(., "NS", sep = "_"))
+# 
+# total_df <- merge(visium_data ,
+#             nanostring_counts,
+#             by = "HUGO_Vi", by.y = "TargetName_NS", all = TRUE) %>% column_to_rownames(var = "HUGO_Vi") %>% drop_na() %>% as.matrix(.)
+# 
+# 
+# colnames(total_df)=str_replace(colnames(total_df),"Sample","P")
+# 
+# metadata_nsv <- data.frame("Patient" = c(str_replace(colnames(visium_data),"Sample","P"),str_replace(colnames(nanostring_counts),"Sample","P")),
+#                            "Platform" = as.factor(c(rep("Visium",ncol(visium_data)),rep("GeoMx®",ncol(nanostring_counts)))))
+# 
+# 
+# metadata_nsv = metadata_nsv %>%  mutate(Tumor_type = case_when(grepl("Tumor",Patient,fixed = TRUE) ~ "Tumor",
+#                                                 grepl("TLS",Patient,fixed = TRUE) ~ "TLS"),
+#                          Tumor_origin =case_when(grepl("P1",Patient,fixed = TRUE) ~ "Glioma",
+#                                                  grepl("P2",Patient,fixed = TRUE) ~ "Glioma",
+#                                                  grepl("P3",Patient,fixed = TRUE) ~ "BM",
+#                                                  grepl("P4",Patient,fixed = TRUE) ~ "BM"),
+#                          Sample_number = as.factor(case_when(grepl("P1",Patient,fixed = TRUE) ~ 1,
+#                                                  grepl("P2",Patient,fixed = TRUE) ~ 2,
+#                                                  grepl("P3",Patient,fixed = TRUE) ~ 3,
+#                                                  grepl("P4",Patient,fixed = TRUE) ~ 4))
+#                          ) %>% drop_na() %>% column_to_rownames(var = "Patient")
+
+write_csv(total_df %>% as.data.frame() %>% rownames_to_column(var="HUGO"),file = "../intermediate_data/nanostring_vs_visium_data/ns_vs_vi_visium_data_aggregated.csv")
+```
+
+```{r}
+total_df <- read_csv("../intermediate_data/nanostring_vs_visium_data/ns_vs_vi_visium_data_aggregated.csv") %>% 
+            column_to_rownames(var="HUGO") %>% 
+            as.matrix()
+
+mat_tpm_like=total_df
+bg=0.01
+type="aggregated"
+rctd_mode="multi"
+quntiseq_res <- deconvolute(mat_tpm_like, "quantiseq",tumor = TRUE) %>% 
+                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                dplyr::group_by(cell_type) %>% 
+                dplyr::summarise_if(is.numeric, sum) %>% 
+                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                mutate(Deconvolution_type="quanTIseq")
+
+
+ mcp_counter_res <- deconvolute(mat_tpm_like, "mcp_counter",tumor = TRUE) %>% 
+                    #mutate(across(contains("E_"), ~./sum(.))) %>% 
+                    mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                    dplyr::group_by(cell_type) %>% 
+                    dplyr::summarise_if(is.numeric, sum) %>% 
+                    min_max_normalisation_for_mcp(.,"P","") %>% 
+                    pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                    mutate(Deconvolution_type="MCPcounter")
+
+ epic_res <- deconvolute(mat_tpm_like, "epic",tumor = TRUE) %>% 
+                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>%
+                dplyr::group_by(cell_type) %>% 
+                dplyr::summarise_if(is.numeric, sum) %>% 
+                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                mutate(Deconvolution_type="EPIC")
+ 
+ spatial_decon_result= spatialdecon(mat_tpm_like,
+                                 bg = bg,
+                                 X = safeTME)
+
+  spatial_decon_res=as.data.frame(spatial_decon_result$prop_of_all) %>% 
+                     rownames_to_column(var="cell_type") %>% 
+                     mutate(cell_type= ifelse(grepl("^T",cell_type)==TRUE,"T cell",cell_type)) %>%
+                     mutate(cell_type= ifelse(grepl("^B.",cell_type)==TRUE,"B cell",cell_type)) %>% 
+                     mutate(cell_type= ifelse(grepl("macrophages",cell_type)==TRUE,"Macrophage",cell_type)) %>% 
+                     dplyr::group_by(cell_type) %>% 
+                     dplyr::summarise_if(is.numeric, sum) %>% 
+                     pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                     mutate(Deconvolution_type="SpatialDecon \ndefault signature")
+  
+  # With reference based tools
+  signature_reference <- readRDS("../intermediate_data/processed_sces/pbmc8k.rds")
+
+  spotligh_res <- spotlight_decon(mat_tpm_like, signature_reference, mean_auc_cutoff = 0.8) %>% 
+                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                #dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
+                dplyr::group_by(cell_type) %>%
+                dplyr::summarise_if(is.numeric, sum) %>% 
+                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>%
+                mutate(Deconvolution_type="SPOTlight")
+
+  
+ rctd_res <-rctd_decon(mat_tpm_like %>% as.data.frame() %>% rownames_to_column(var="HUGO"), signature_reference, rctd_mode=rctd_mode) %>% 
+            mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+            #dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
+            dplyr::group_by(cell_type) %>%
+            dplyr::summarise_if(is.numeric, sum) %>% 
+            pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>%
+            mutate(Deconvolution_type="RCTD")
+
+ cell2loc_res <- read_csv(paste0("../intermediate_data/cell2location_res/ns_vs_vi_",type,"_cell2loc_res.csv")) %>% 
+                dplyr::rename("cell_type"="...1") %>% 
+                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                #dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
+                dplyr::group_by(cell_type) %>%
+                dplyr::summarise_if(is.numeric, sum) %>% 
+                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>%
+                mutate(Deconvolution_type="cell2location")
+
+  res_df= rbind(quntiseq_res,epic_res,mcp_counter_res,spotligh_res, spatial_decon_res,rctd_res,cell2loc_res) %>% 
+          mutate(cell_type = case_when(
+          cell_type %in% c("Macrophage M1", "Macrophage M2") ~ "Macrophage",
+          cell_type %in% c("monocytes.C", "monocytes.NC.I") ~ "Monocyte",
+          cell_type == "NK" ~ "NK cell",
+          cell_type == "endothelial.cells" ~ "Endothelial cell",
+          cell_type == "fibroblasts" ~ "Fibroblast cell",
+          cell_type %in% c("mDCs", "pDCs") ~ "Dendritic cell",
+          cell_type == "mast" ~ "Mast cell",
+          cell_type == "plasma" ~ "Plasma cell",
+          cell_type == "neutrophils" ~ "Neutrophil",
+          TRUE ~ cell_type )) %>% 
+            dplyr::group_by(Deconvolution_type,Sample_name,cell_type) %>% 
+                     dplyr::summarise_if(is.numeric, sum)
+```
+
+```{r}
+ns_vs_vi=res_df %>% 
+  ungroup() %>% 
+  mutate( Patient      = substr(Sample_name, 1, 2),
+          Platform     = substr(Sample_name, nchar(Sample_name) - 1, nchar(Sample_name)),
+          Tissue_type  = ifelse(substr(Sample_name, 4, 6) == "TLS", "Immune rich", "Tumor")) %>% 
+  dplyr::select(-contains("Sample")) %>% 
+pivot_wider(names_from  = Platform,
+              values_from = Deconvolution_proportions) %>% 
+#dplyr::rename("Nanostring GeoMx® DSP"="NS", "10x Visium"="Vi") %>% 
+mutate(Deconvolution_type=ifelse(Deconvolution_type=="MCPcounter","MCPcounter*",Deconvolution_type),
+       Deconvolution_type=ifelse(Deconvolution_type=="SpatialDecon \ndefault signature","SpatialDecon",Deconvolution_type)) %>% 
+mutate(Deconvolution_type=factor(Deconvolution_type,levels=c("quanTIseq","EPIC","MCPcounter*","SPOTlight","SpatialDecon","RCTD","cell2location")))
+# ggplot(aes(x=NS,y=Vi))+
+#   geom_point(aes(color=cell_type), size=2) +
+#          stat_cor(method = "pearson",size=4, aes(label = ifelse(is.na(..r..), NA, ..r.label..)))+
+#          scale_color_manual (values = c ( "B cell"  =  "#8DD3C7" ,
+#                                          "Macrophage"  =  "#FFFFB3",
+#                                          "Monocyte"  =  "#BEBADA",
+#                                          "Neutrophil"  =  "#FB8072",
+#                                          "NK cell"  =  "#80B1D3" ,
+#                                          "T cell"  =  "#FDB462" ,
+#                                          "Myeloid dendritic cell"  =  "#B3DE69" ,
+#                                          "uncharacterized cell"  =  "#FCCDE5",
+#                                          "cytotoxicity score"  =  "#C9B4A7" ,
+#                                          "Macrophage/Monocyte"  =  "#D9D9D9",
+#                                          "Endothelial cell"  =  "#BC80BD" ,
+#                                          "Cancer associated fibroblast"  =  "#CCEBC5" ,
+#                                          "Progenitor" = "#573F94",
+#                                          "Dendritic cell" = "#B3DE69",
+#                                          "Mast cell"="#E6B9A1",
+#                                          "Plasma cell"="#E6E6CA",
+#                                          "Fibroblast cell"="#CCEBC5"), name="Cell Type") +
+#         geom_smooth(method = "lm", formula = y~x, col = "black") +
+#         # scale_shape_manual(values=c(0,1,2,3, 16, 17,11,4,8)) + theme(plot.title = element_text(hjust = 0.5)) +
+#         theme(axis.text.y   = element_text(size=14),
+#               axis.text.x   = element_text(size=14),
+#               axis.title.y  = element_text(size=14),
+#               axis.title.x  = element_text(size=14),
+#               panel.background = element_blank(),
+#               panel.grid.major = element_blank(),
+#               panel.grid.minor = element_blank(),
+#               axis.line = element_line(colour = "#C0C0C0"),
+#               panel.border = element_rect(colour = "#C0C0C0", fill=NA, size=1)) +
+#         xlab("Nanostring GeoMx® DSP") +
+#         ylab("10x Visium") +
+#         ylim(0,1)+
+#         facet_grid(rows = vars(Tissue_type), cols = vars(Deconvolution_type), scales = "free")+
+#         theme( legend.position = "bottom",
+#                legend.box = "vertical",
+#         strip.text.x = element_text(size = 15),
+#         axis.text.x = element_text(size = 8),
+#         strip.text.y.right = element_text(size = 15),
+#         axis.text.y.right  = element_text(size = 8))+
+#         guides(
+#         color = guide_legend(nrow = 4, byrow = TRUE),
+#         shape = guide_legend(nrow = 4, byrow = TRUE))+
+#         #coord_fixed(ratio=0.9)+
+#         mytheme
+# 
+# ggsave(filename = "../manuscript/figs/Visium_vs_Nanostring_inhouse_aggregated_corplot.png",plot = ns_vs_vi_corplot, width = 15, height = 7, units = "in", dpi = 600)
+# 
+# write_rds(ns_vs_vi_corplot, file = "../manuscript/figs/Visium_vs_Nanostring_inhouse_aggregated_corplot.RData")
+
+```
+
+
+# Plotting just the B and the T cells
+```{r}
+ns_vs_vo_aggregated= ns_vs_vi %>% 
+                     filter(cell_type %in% c("B cell","T cell") ) %>% 
+                     ggplot(aes(x=NS,y=Vi))+
+                     geom_point(aes(color=cell_type, shape=Tissue_type), size=2) +
+                     stat_cor(method = "pearson",size=4, aes(label = ifelse(is.na(..r..), NA, ..r.label..)))+
+                     scale_color_manual (values = c ( "B cell"  =  "#8DD3C7" , "T cell"  =  "#FDB462"), name="Cell Type") +
+                     scale_shape_manual(values = c("Immune rich" = 16, "Tumor" = 1),name="Tissue Type")+
+                    xlab("Nanostring GeoMx® DSP") +
+                    ylab("10x Visium") +
+                    #ylim(0,1)+
+                    #facet_wrap(cols = vars(Deconvolution_type), scales = "free",space = "free")+
+                    facet_wrap(~Deconvolution_type, scales = "free", nrow = 1)+
+                    mytheme+
+                    geom_abline(intercept = 0, slope = 1,
+              color = "red", linetype = "dotted", size = 1)+
+  coord_cartesian(xlim = c(NA, NA), ylim = c(NA, NA))
+
+write_rds(ns_vs_vo_aggregated, file = "../manuscript/figs/Visium_vs_Nanostring_inhouse_aggregated_scatterplot_b_and_t_cell.RData")
+             
+```
+
+

@@ -1,0 +1,303 @@
+---
+title: "Human_Ovarian_Cancer"
+output: html_document
+date: "2025-04-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#setwd("~/mnt_AG_Imkeller/group_members/asingh/Benchmarking_deconvolution/scripts")
+```
+
+```{r}
+# BiocManager::install("TENxPBMCData")
+# BiocManager::install("scater")
+# BiocManager::install("scran")
+# BiocManager::install("celldex")
+# BiocManager::install("SingleR")
+# BiocManager::install("biomaRt")
+# BiocManager::install(c("ensembldb","SpatialExperiment","SingleCellExperiment","scRNAseq"))
+# BiocManager::install("SPOTlight")
+# BiocManager::install("SpatialDecon")
+# 
+# install.packages("Seurat")
+# install.packages("ggpubr")
+# remotes::install_github("omnideconv/immunedeconv")
+```
+
+```{r}
+source("./functions.R")
+```
+
+```{r}
+library(quantiseqr)
+```
+
+## R Markdown
+```{r}
+library(ExperimentHub)
+library(DropletUtils)
+library(TENxVisiumData)
+eh <- ExperimentHub()
+(q <- query(eh, "TENxVisium"))
+```
+
+
+```{r}
+# Specific for the error in the package version 1.38.1
+setClassUnion("ExpData", c("matrix", "SummarizedExperiment"))
+```
+
+# Human Ovarian Cancer
+```{r}
+spe_complete <- HumanOvarianCancer()
+rownames(spe_complete)= rowData(spe_complete)$symbol
+
+
+#WTA
+#spe=spe_complete[,sample(ncol(spe_complete), 200)]
+spe_assay=assay(spe_complete) %>% as.matrix()
+wta=spe_assay[complete.cases(spe_assay),]
+
+
+#Targeted Immunology
+targeted_immunology_ele<- swapAltExp(spe_complete,"TargetedImmunology", saved = NULL)
+rownames(targeted_immunology_ele) <- rowData(targeted_immunology_ele)$symbol
+targeted_immunology_assay=assay(targeted_immunology_ele) %>% as.matrix()
+
+
+
+
+# Targeted Pan Cancer
+targeted_pan_cancer_ele<- swapAltExp(spe_complete,"TargetedPanCancer", saved = NULL)
+rownames(targeted_pan_cancer_ele) <- rowData(targeted_pan_cancer_ele)$symbol
+targeted_pan_cancer_assay=assay(targeted_pan_cancer_ele) %>% as.matrix()
+
+```
+
+```{r}
+deconvolute_real_data=function(mat,bg)
+{
+  
+# TPM like normalisaion
+mat_tpm_like= apply(mat, 2, function(x) x * 1000000 / sum(x))
+
+mat_tpm_like=mat[, !apply(mat_tpm_like, 2, anyNA)]
+mat <- mat[, colSums(mat_tpm_like) != 0]
+
+
+# Calculate Q3 for each column
+# q3_values <- apply(mat, 2, function(x) quantile(x, 0.75))
+# q3_geometric_mean=exp(mean(log(q3_values)))
+# mat_q3_norm= sweep(mat, 2, q3_values, FUN = "/") * q3_geometric_mean
+
+
+quntiseq_res <- deconvolute(mat_tpm_like, "quantiseq",tumor = TRUE) %>% 
+                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                dplyr::group_by(cell_type) %>% 
+                dplyr::summarise_if(is.numeric, sum) %>% 
+                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                mutate(Deconvolution_type="quanTIseq")
+
+
+ mcp_counter_res <- deconvolute(mat_tpm_like, "mcp_counter",tumor = TRUE) %>% 
+                    mutate(across(contains("E_"), ~./sum(.))) %>% 
+                    mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
+                    dplyr::group_by(cell_type) %>% 
+                    dplyr::summarise_if(is.numeric, sum) %>% 
+                    pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                    mutate(Deconvolution_type="MCPcounter")
+
+     epic_res <- tryCatch({
+      deconvolute(mat_tpm_like, "epic", tumor = TRUE) %>%
+        mutate(cell_type = ifelse(grepl("T cell", cell_type) == TRUE, "T cell", cell_type)) %>%
+        dplyr::group_by(cell_type) %>%
+        dplyr::summarise_if(is.numeric, sum) %>%
+        pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>%
+        mutate(Deconvolution_type = "EPIC")
+    }, error = function(e) {
+      message("EPIC Failed to run: ", e$message)
+      return(NULL) # Return NULL or an alternative value to handle the error
+    })
+ 
+ spatial_decon_result= spatialdecon(mat_tpm_like,
+                                 bg = bg,
+                                 X = safeTME)
+
+spatial_decon_res=as.data.frame(spatial_decon_result$prop_of_all) %>% 
+                     rownames_to_column(var="cell_type") %>% 
+                     mutate(cell_type= ifelse(grepl("^T",cell_type)==TRUE,"T cell",cell_type)) %>%
+                     mutate(cell_type= ifelse(grepl("^B.",cell_type)==TRUE,"B cell",cell_type)) %>% 
+                     mutate(cell_type= ifelse(grepl("macrophages",cell_type)==TRUE,"Macrophage",cell_type)) %>% 
+                     dplyr::group_by(cell_type) %>% 
+                     dplyr::summarise_if(is.numeric, sum) %>% 
+                     pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
+                     mutate(Deconvolution_type="SpatialDecon \ndefault signature")
+
+  res_df= rbind(quntiseq_res,if (!is.null(epic_res)) epic_res,mcp_counter_res,spatial_decon_res) %>% 
+          mutate(cell_type = case_when(
+          cell_type %in% c("Macrophage M1", "Macrophage M2") ~ "Macrophage",
+          cell_type %in% c("monocytes.C", "monocytes.NC.I") ~ "Monocyte",
+          cell_type == "NK" ~ "NK cell",
+          cell_type == "endothelial.cells" ~ "Endothelial cell",
+          cell_type == "fibroblasts" ~ "Fibroblast cell",
+          cell_type %in% c("mDCs", "pDCs") ~ "Dendritic cell",
+          cell_type == "mast" ~ "Mast cell",
+          cell_type == "plasma" ~ "Plasma cell",
+          cell_type == "neutrophils" ~ "Neutrophil",
+          TRUE ~ cell_type )) %>% 
+            dplyr::group_by(Deconvolution_type,Sample_name,cell_type) %>% 
+                     dplyr::summarise_if(is.numeric, sum)
+  return(res_df)
+}
+```
+
+
+```{r}
+wta_res= deconvolute_real_data(wta,0.01) %>% mutate(Gene_panel="WTA")
+targeted_immunoly_res=deconvolute_real_data(targeted_immunology_assay,0.01) %>% mutate(Gene_panel="Targeted Immunology")
+targeted_pan_cancer=deconvolute_real_data(targeted_pan_cancer_assay,0.01) %>% mutate(Gene_panel="Targeted Pan Cancer")
+```
+```{r}
+mat=targeted_immunology
+
+max(mat)
+```
+```{r}
+saveRDS(wta_res, file = "../intermediate_data/Human_ovarian_cancer/wta_deconvolution.RDS")
+saveRDS(targeted_immunoly_res, file = "../intermediate_data/Human_ovarian_cancer/targeted_immunology_deconvolution.RDS")
+saveRDS(targeted_pan_cancer, file = "../intermediate_data/Human_ovarian_cancer/targeted_pan_cancer.RDS")
+```
+
+# Plotting
+```{r}
+res=rbind(readRDS("../intermediate_data/Human_ovarian_cancer/wta_deconvolution.RDS"),
+      readRDS("../intermediate_data/Human_ovarian_cancer/targeted_immunology_deconvolution.RDS"),
+      readRDS("../intermediate_data/Human_ovarian_cancer/targeted_pan_cancer.RDS"))
+```
+
+
+```{r}
+set.seed(5286)
+selected_barcodes=sample(unique(res$Sample_name),500)
+```
+
+
+```{r}
+
+subset_df <- res %>%
+   filter(Sample_name %in% selected_barcodes,
+          Deconvolution_type != "MCPcounter",
+          cell_type %in% c("B cell", "T cell"), # or loop through both cell types
+          Gene_panel %in% c("WTA", "Targeted Immunology", "Targeted Pan Cancer")) %>%
+   mutate(Deconvolution_type = ifelse(Deconvolution_type == "SpatialDecon \ndefault signature", 
+                                      "SpatialDecon", Deconvolution_type)) %>%
+   mutate(Gene_panel = factor(Gene_panel, levels = c("WTA", "Targeted Immunology", "Targeted Pan Cancer"))) %>% 
+   mutate(Deconvolution_type=factor(Deconvolution_type, levels = c("quanTIseq","EPIC","SpatialDecon")))
+
+
+ # Pivot to wide format for Friedman test
+ friedman_input <- subset_df %>%
+   select(Sample_name, Gene_panel, Deconvolution_proportions, cell_type) %>%
+   pivot_wider(names_from = Gene_panel, values_from = Deconvolution_proportions)
+ 
+
+methods <- levels(subset_df$Deconvolution_type)
+
+all_p_values= data.frame()
+
+# Loop through each Deconvolution_type
+for (cell in c("B cell","T cell")) 
+   {
+       for (method in methods) {
+       cat("\n---", method, "---\n")
+       
+       # Subset one method
+       df_sub <- friedman_input %>%
+         filter(cell_type==cell) %>% 
+         filter(Deconvolution_type == method) %>%
+         select(Sample_name, WTA, `Targeted Immunology`, `Targeted Pan Cancer`)
+       
+       # Friedman test
+       friedman_res <- friedman.test(as.matrix(df_sub[,-1]))
+       print(friedman_res)
+       
+       # Reshape to long for pairwise wilcox
+       df_long <- df_sub %>%
+         ungroup() %>% 
+         select(1,3,4,5) %>% 
+         pivot_longer(cols = -Deconvolution_type, names_to = "Panel", values_to = "Proportion")
+       
+       # Pairwise Wilcoxon signed-rank tests (with Bonferroni correction)
+       pairwise_res <- df_long %>%
+         pairwise_wilcox_test(
+           Proportion ~ Panel,
+           paired = TRUE,
+           p.adjust.method = "bonferroni"
+         )
+       
+       all_p_values=rbind(all_p_values,
+                          pairwise_res %>% 
+                          mutate("Deconvolution_tool"=method,
+                                 "cell_type"=cell))
+       }
+ }
+
+```
+
+```{r}
+plt=res %>% 
+  dplyr::filter(Sample_name %in% selected_barcodes ) %>% 
+  dplyr::filter(Deconvolution_type !="MCPcounter") %>% 
+  dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
+  dplyr::mutate(Deconvolution_type=ifelse(Deconvolution_type=="SpatialDecon \ndefault signature","SpatialDecon",Deconvolution_type)) %>% 
+  dplyr::mutate(Deconvolution_type=factor(Deconvolution_type,levels = c("quanTIseq","EPIC","SpatialDecon"))) %>% 
+  dplyr::mutate(Gene_panel=factor(Gene_panel,levels=c("WTA","Targeted Immunology","Targeted Pan Cancer"))) %>% 
+  ggplot(aes(x=Gene_panel,y=Deconvolution_proportions, color=Gene_panel, group=Sample_name))+
+  geom_line(alpha = 0.2, show.legend = FALSE)+
+  geom_point()+
+  facet_grid(cell_type~Deconvolution_type,axes="all_y" ,scales="free")+
+  scale_color_manual(values= c("WTA"="#26547c","Targeted Immunology"="#ef476f","Targeted Pan Cancer"="#ffd166"), name="Gene Panel")+
+  mytheme+
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Rotate x-axis labels 45 degrees
+  )+
+  xlab("Gene panels")+
+  ylab("Predicted proportions")
+
+
+plt_with_p_val=plt +
+   stat_pvalue_manual(
+     all_p_values %>% 
+     mutate(p.adj.signif=ifelse(p.adj.signif=="****","**",p.adj.signif)) %>% 
+     select(group1, group2, p.adj.signif, cell_type, Deconvolution_tool)%>% 
+     dplyr::rename("Deconvolution_type"="Deconvolution_tool") %>% 
+     mutate(y.position = case_when(group1=="Targeted Immunology" & group2=="Targeted Pan Cancer"~0.8,
+                                   group1=="Targeted Immunology" & group2=="WTA"~0.9,
+                                   group1=="Targeted Pan Cancer" & group2=="WTA"~1)),  # or assign real y-positions
+     label = "p.adj.signif",
+     xmin = "group1",
+     xmax = "group2",
+     y.position = "y.position",
+     tip.length = 0.03,
+     inherit.aes = FALSE
+   )
+```
+
+
+```{r}
+ggsave(filename = "../manuscript/figs/Ovarian_cancer_deconvolution_v3.png", plot = plt_with_p_val, width = 8, height = 8, units = "in")
+```
+
+```{r}
+saveRDS(plt_with_p_val,file = "../manuscript/figs/Ovarian_cancer_deconvolution_v3.RDS")
+```
+
+```{r}
+test 
+```
+

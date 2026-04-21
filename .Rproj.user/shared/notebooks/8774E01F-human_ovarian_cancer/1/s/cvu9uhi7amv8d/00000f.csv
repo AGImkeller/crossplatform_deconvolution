@@ -1,0 +1,2 @@
+"0","# Specific for the error in the package version 1.38.1"
+"0","setClassUnion(""ExpData"", c(""matrix"", ""SummarizedExperiment""))"

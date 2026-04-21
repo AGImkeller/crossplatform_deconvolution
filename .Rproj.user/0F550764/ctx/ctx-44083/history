@@ -1,0 +1,418 @@
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+methyl_data<- readRDS("screened_cohort_clinical_data_with_methylation_data_06092023.RData") %>%
+dplyr::mutate("Patient_id_year"= paste(PATIENTEN_ID,year,sep = "_"))
+methyl_data %>%
+dplyr::filter(is.na(Methylation_class)==TRUE)
+methyl_data %>%
+dplyr::filter(is.na(Methylation_subclass_1)==TRUE)
+unique(methyl_data$Methylation_class)
+colnames(tls_data)
+pvic_data <- read_csv("../TLS_screening_results/PVIC+glioma_73_with_methylation_data.csv")
+tls_data <- read_delim("../TLS_screening_results/TLS_glioma_33_methylation_survival_multiplex.csv")
+load("screened_cohort_clinical_data_with_methylation_data_05022024.RData")
+methyl_data
+knitr::opts_chunk$set(echo = TRUE)
+methyl_data<- readRDS("screened_cohort_clinical_data_with_methylation_data_06092023.RData") %>%
+dplyr::mutate("Patient_id_year"= paste(PATIENTEN_ID,year,sep = "_"))
+library(tidyverse)
+library(readxl)
+methyl_data<- readRDS("screened_cohort_clinical_data_with_methylation_data_06092023.RData") %>%
+dplyr::mutate("Patient_id_year"= paste(PATIENTEN_ID,year,sep = "_"))
+methyl_data %>%
+dplyr::filter(is.na(Methylation_class)==TRUE)
+methyl_data %>%
+dplyr::filter(is.na(Methylation_subclass_1)==TRUE)
+pvic_data <- read_csv("../TLS_screening_results/PVIC+glioma_76_with_methylation_data.csv")
+tls_data <- read_delim("../TLS_screening_results/TLS_glioma_33_methylation_survival_multiplex.csv")
+View(pvic_data)
+pvic_data <- read_csv("../TLS_screening_results/PVIC+glioma_76_with_methylation_data.csv")
+tls_data <- read_delim("../TLS_screening_results/TLS_glioma_33_methylation_survival_multiplex.csv")
+View(pvic_data)
+View(tls_data)
+pvic_tls_methyl_data <- rbind(
+pvic_data %>%
+select("Biopsy number","ID number","TLS status TLS-:0, TLS+:1, PVIC+:2","Methylation class","Methylation subclass 1","IDH status : Wild-type:0 Mutant-type:1") %>%
+dplyr::rename("Biopsy_number"="Biopsy number",
+"Patient_id"= "ID number",
+"TLS_status" = "TLS status TLS-:0, TLS+:1, PVIC+:2",
+"Methylation_class"="Methylation class",
+"Methylation_subclass_1" = "Methylation subclass 1",
+"IDH_status"="IDH status : Wild-type:0 Mutant-type:1") %>%
+mutate(TLS_status=ifelse(TLS_status==0,"no TLS",ifelse(TLS_status==1,"TLS","PVIC")),
+IDH_status=ifelse(IDH_status==0,"WT","mut")) %>%
+dplyr::filter(is.na(Patient_id)==FALSE),
+tls_data %>%
+select("Biopsy number","ID number","Methylation class","Methylation subclass 1","IDH status : Wild-type:0 Mutant-type:1") %>%
+dplyr::rename("Biopsy_number"="Biopsy number",
+"Patient_id"= "ID number",
+"Methylation_class"="Methylation class",
+"Methylation_subclass_1" = "Methylation subclass 1",
+"IDH_status"="IDH status : Wild-type:0 Mutant-type:1") %>%
+mutate(TLS_status="TLS",
+IDH_status=ifelse(IDH_status==0,"WT","mut")) %>%
+dplyr::filter(is.na(Patient_id)==FALSE)
+) %>%
+mutate(Biopsy_number= sub(paste0("\\(", ".*"), "", Biopsy_number)) %>%
+mutate(Biopsy_number= trimws(Biopsy_number,"right"),year= str_sub(Biopsy_number,-4,-1)) %>%
+mutate("Patient_id_year"= paste(Patient_id,year, sep="_")) %>%
+dplyr::rename("PATIENTEN_ID"="Patient_id",
+"enummer"="Biopsy_number") %>%
+dplyr::mutate(PATIENTEN_ID=as.character(PATIENTEN_ID))
+# Methylation data of the PVIC and the TLS cases from Pinar's screening results
+# colnames(pvic_data)
+pvic_tls_methyl_data <- rbind(
+pvic_data %>%
+select("Biopsy number","ID number","TLS status TLS-:0, TLS+:1, PVIC+:2","Methylation class","Methylation subclass 1","IDH status : Wild-type:0 Mutant-type:1") %>%
+dplyr::rename("Biopsy_number"="Biopsy number",
+"Patient_id"= "ID number",
+"TLS_status" = "TLS status TLS-:0, TLS+:1, PVIC+:2",
+"Methylation_class"="Methylation class",
+"Methylation_subclass_1" = "Methylation subclass 1",
+"IDH_status"="IDH status : Wild-type:0 Mutant-type:1") %>%
+mutate(TLS_status=ifelse(TLS_status==0,"no TLS",ifelse(TLS_status==1,"TLS","PVIC")),
+IDH_status=ifelse(IDH_status==0,"WT","mut")) %>%
+dplyr::filter(is.na(Patient_id)==FALSE),
+tls_data %>%
+select("Biopsy number","ID number","Methylation class","Methylation subclass 1","IDH status : Wild-type:0 Mutant-type:1") %>%
+dplyr::rename("Biopsy_number"="Biopsy number",
+"Patient_id"= "ID number",
+"Methylation_class"="Methylation class",
+"Methylation_subclass_1" = "Methylation subclass 1",
+"IDH_status"="IDH status : Wild-type:0 Mutant-type:1") %>%
+mutate(TLS_status="TLS",
+IDH_status=ifelse(IDH_status==0,"WT","mut")) %>%
+dplyr::filter(is.na(Patient_id)==FALSE)
+) %>%
+mutate(Biopsy_number= sub(paste0("\\(", ".*"), "", Biopsy_number)) %>%
+mutate(Biopsy_number= trimws(Biopsy_number,"right"),year= str_sub(Biopsy_number,-4,-1)) %>%
+mutate("Patient_id_year"= paste(Patient_id,year, sep="_")) %>%
+dplyr::rename("PATIENTEN_ID"="Patient_id",
+"enummer"="Biopsy_number") %>%
+dplyr::mutate(PATIENTEN_ID=as.character(PATIENTEN_ID))
+View(pvic_data)
+pvic_data <- read_tsv("../TLS_screening_results/PVIC+glioma_76_with_methylation_data.csv")
+pvic_data <- read_tsv("../TLS_screening_results/PVIC+glioma_76_with_methylation_data.csv")
+View(pvic_data)
+tls_data <- read_delim("../TLS_screening_results/TLS_glioma_33_methylation_survival_multiplex.csv")
+# Methylation data of the PVIC and the TLS cases from Pinar's screening results
+# colnames(pvic_data)
+pvic_tls_methyl_data <- rbind(
+pvic_data %>%
+select("Biopsy number","ID number","TLS status TLS-:0, TLS+:1, PVIC+:2","Methylation class","Methylation subclass 1","IDH status : Wild-type:0 Mutant-type:1") %>%
+dplyr::rename("Biopsy_number"="Biopsy number",
+"Patient_id"= "ID number",
+"TLS_status" = "TLS status TLS-:0, TLS+:1, PVIC+:2",
+"Methylation_class"="Methylation class",
+"Methylation_subclass_1" = "Methylation subclass 1",
+"IDH_status"="IDH status : Wild-type:0 Mutant-type:1") %>%
+mutate(TLS_status=ifelse(TLS_status==0,"no TLS",ifelse(TLS_status==1,"TLS","PVIC")),
+IDH_status=ifelse(IDH_status==0,"WT","mut")) %>%
+dplyr::filter(is.na(Patient_id)==FALSE),
+tls_data %>%
+select("Biopsy number","ID number","Methylation class","Methylation subclass 1","IDH status : Wild-type:0 Mutant-type:1") %>%
+dplyr::rename("Biopsy_number"="Biopsy number",
+"Patient_id"= "ID number",
+"Methylation_class"="Methylation class",
+"Methylation_subclass_1" = "Methylation subclass 1",
+"IDH_status"="IDH status : Wild-type:0 Mutant-type:1") %>%
+mutate(TLS_status="TLS",
+IDH_status=ifelse(IDH_status==0,"WT","mut")) %>%
+dplyr::filter(is.na(Patient_id)==FALSE)
+) %>%
+mutate(Biopsy_number= sub(paste0("\\(", ".*"), "", Biopsy_number)) %>%
+mutate(Biopsy_number= trimws(Biopsy_number,"right"),year= str_sub(Biopsy_number,-4,-1)) %>%
+mutate("Patient_id_year"= paste(Patient_id,year, sep="_")) %>%
+dplyr::rename("PATIENTEN_ID"="Patient_id",
+"enummer"="Biopsy_number") %>%
+dplyr::mutate(PATIENTEN_ID=as.character(PATIENTEN_ID))
+load("screened_cohort_clinical_data_with_methylation_data_05022024.RData")
+View(methyl_data)
+methyl_data %>%
+filter(enummer %in% pvic_tls_methyl_data$enummer )
+methyl_data %>%
+filter(enummer %in% pvic_tls_methyl_data$enummer ) %>%
+filter(TLS_status %in% c("TLS","PVIC") )
+test= methyl_data %>%
+filter(enummer %in% pvic_tls_methyl_data$enummer )
+View(test)
+pvic_tls_methyl_data %>%
+filter(!enummer %in% methyl_data$enummer)
+View(pvic_tls_methyl_data)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year"))
+View(test)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, ", ")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = ", ")))
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, ", ")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = ", "))) %>%
+mutate(Methylation_subclass_combined= mutate(Methylation_subclass_combined = str_replace(column_name, "^NA, ", "")))
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, ", ")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = ", "))) %>%
+mutate(Methylation_subclass_combined= mutate(Methylation_subclass_combined = str_replace(Methylation_subclass_combined, "^NA, ", "")))
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, ", ")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = ", "))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "^NA, ", ""))
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, ", ")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = ", "))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "^NA, ", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, ", ")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = ", "))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, ", ")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = ", "))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, ", ")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = ", "))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "^,", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, ", ")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = ", "))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "^,", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, ",")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = ","))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "^,", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, ",")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = ","))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "^,", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, ",")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = ""))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "^,", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, ",")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = ""))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "^,", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, ",")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = ""))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, ",")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = ""))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, "")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = ""))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = ", ", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, "")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = ""))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y)
+methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, "/")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = "/")))
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, "/")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "/", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, "/")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "/", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, "/")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "/", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, "/")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "/", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, "/")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "/", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, "/")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "/", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y) %>%
+filter(TLS_status.x != TLS_status.y)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, "/")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "/", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, "/")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "/", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y) %>%
+filter(TLS_status.x == TLS_status.y)
+methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, "/")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "/", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, "/")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "/", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+# Combining the Methylation subclass
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, "/")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "/", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+# Combining the Methylataion class
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, "/")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "/", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y) %>%
+# Combining the TLS_status
+unite(TLS_status, c("TLS_status.x","TLS_status.y"), sep = "/", remove = FALSE) %>%
+mutate(TLS_status = strsplit(TLS_status, "/")) %>%
+mutate(TLS_status = map_chr(TLS_status, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(TLS_status= str_replace(TLS_status, "NA", "")) %>%
+mutate(TLS_stauts= str_replace(TLS_status, "/", "")) %>%
+select(-TLS_status.x,-TLS_status.y)
+test=methyl_data %>%
+filter(TLS_status %in% c("PVIC","TLS")) %>%
+select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,methylation_subclass,Patient_id_year) %>%
+full_join(pvic_tls_methyl_data %>% select(enummer,PATIENTEN_ID,TLS_status,Methylation_class,Methylation_subclass_1,Patient_id_year), by=c("Patient_id_year"="Patient_id_year")) %>%
+# Combining the Methylation subclass
+unite(Methylation_subclass_combined, c("Methylation_subclass_1.x","methylation_subclass","Methylation_subclass_1.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_subclass_combined = strsplit(Methylation_subclass_combined, "/")) %>%
+mutate(Methylation_subclass_combined = map_chr(Methylation_subclass_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "NA", "")) %>%
+mutate(Methylation_subclass_combined= str_replace(Methylation_subclass_combined, "/", "")) %>%
+select(-methylation_subclass,-Methylation_subclass_1.x,-Methylation_subclass_1.y) %>%
+# Combining the Methylataion class
+unite(Methylation_class_combined, c("Methylation_class.x","Methylation_class.y"), sep = "/", remove = FALSE) %>%
+mutate(Methylation_class_combined = strsplit(Methylation_class_combined, "/")) %>%
+mutate(Methylation_class_combined = map_chr(Methylation_class_combined, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "NA", "")) %>%
+mutate(Methylation_class_combined= str_replace(Methylation_class_combined, "/", "")) %>%
+select(-Methylation_class.x,-Methylation_class.y) %>%
+# Combining the TLS_status
+unite(TLS_status, c("TLS_status.x","TLS_status.y"), sep = "/", remove = FALSE) %>%
+mutate(TLS_status = strsplit(TLS_status, "/")) %>%
+mutate(TLS_status = map_chr(TLS_status, ~ paste(unique(.x), collapse = "/"))) %>%
+mutate(TLS_status= str_replace(TLS_status, "NA", "")) %>%
+mutate(TLS_status= str_replace(TLS_status, "/", "")) %>%
+select(-TLS_status.x,-TLS_status.y)

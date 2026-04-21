@@ -1,0 +1,740 @@
+---
+title: "plotting_v2"
+author: "Aakanksha Singh"
+date: "2025-01-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+source("./0_functions.R")
+```
+
+# Function for correlation plot 
+```{r}
+# nb.cols <- 18
+# mycolors <- colorRampPalette(brewer.pal(11, "Set3"))(nb.cols)
+
+correlation_plots <- function(df,parameter,analysis_type)
+{ 
+         df= df %>% 
+         #mutate(Deconvolution_fraction=ifelse(grepl("MCP",deconv_type)==TRUE,
+         #                                     (Deconvolution_fraction/total_mcp_count_value),Deconvolution_fraction)) %>% 
+         mutate(Deconvolution_fraction=ifelse(is.na(Deconvolution_fraction)==TRUE,0,Deconvolution_fraction),
+                actual_frac=ifelse(is.na(actual_frac)==TRUE,0,actual_frac))
+          
+         # Correlation Plots
+         corplot= df %>%
+         ggplot(aes(x=(actual_frac),y=(Deconvolution_fraction))) +
+         geom_point(aes(color=cell_type), size=2) +
+         stat_cor(method = "pearson",size=4, aes(label = ifelse(is.na(..r..), NA, ..r.label..)))+
+         scale_color_manual (values = c ( "B cell"  =  "#8DD3C7" ,
+                                         "Macrophage"  =  "#FFFFB3",
+                                         "Monocyte"  =  "#BEBADA",
+                                         "Neutrophil"  =  "#FB8072",
+                                         "NK cell"  =  "#80B1D3" ,
+                                         "T cell"  =  "#FDB462" ,
+                                         "Myeloid dendritic cell"  =  "#B3DE69" ,
+                                         "Uncharacterized cell"  =  "#FCCDE5",
+                                         "cytotoxicity score"  =  "#C9B4A7" ,
+                                         "Macrophage/Monocyte"  =  "#D9D9D9",
+                                         "Endothelial cell"  =  "#BC80BD" ,
+                                         "Cancer associated fibroblast"  =  "#CCEBC5" ,
+                                         "Progenitor" = "#573F94",
+                                         "Dendritic cell" = "#B3DE69",
+                                         "Mast cell"="#E6B9A1",
+                                         "Plasma cell"="#E6E6CA",
+                                         "Fibroblast cell"="#CCEBC5"), name="Cell Type") +
+        geom_smooth(method = "lm", formula = y~x, col = "black") +
+        # scale_shape_manual(values=c(0,1,2,3, 16, 17,11,4,8)) + theme(plot.title = element_text(hjust = 0.5)) +
+        theme(axis.text.y   = element_text(size=14),
+              axis.text.x   = element_text(size=14),
+              axis.title.y  = element_text(size=14),
+              axis.title.x  = element_text(size=14),
+              panel.background = element_blank(),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              axis.line = element_line(colour = "#C0C0C0"),
+              panel.border = element_rect(colour = "#C0C0C0", fill=NA, size=1)) +
+        xlab("Actual proportions") +
+        ylab("Predicted proportions") +
+        ylim(0,1)+
+        facet_grid(rows = vars(!!sym(parameter)), cols = vars(deconv_type), scales = "free")+
+        theme( legend.position = "bottom",
+               legend.box = "vertical",
+        strip.text.x = element_text(size = 15),
+        axis.text.x = element_text(size = 8),
+        strip.text.y.right = element_text(size = 15),
+        axis.text.y.right  = element_text(size = 8))+
+        guides(
+        color = guide_legend(nrow = 4, byrow = TRUE),
+        shape = guide_legend(nrow = 4, byrow = TRUE))+
+        #coord_fixed(ratio=0.9)+
+        mytheme
+
+        save(corplot,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_corplot.RData"))
+        ggsave(plot = corplot,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_corplot.png"),width = 16, height =12, units = "in", dpi = 300)
+        
+        # save(corplot,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_corplot_with_epic_pseudobulks.RData"))
+        # ggsave(plot = corplot,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_corplot_with_epic_pseudobulks.png"),width = 16, height =12, units = "in", dpi = 300)
+        
+}
+```
+
+
+```{r}
+correlation_plots_signature <- function(df,parameter,analysis_type)
+{ # getting the sum of MCP values per Dataset
+        
+         corplot= df %>%
+           mutate(Deconvolution_fraction=ifelse(is.na(Deconvolution_fraction)==TRUE,0,Deconvolution_fraction),
+                actual_frac=ifelse(is.na(actual_frac)==TRUE,0,actual_frac)) %>% 
+         ggplot(aes(x=(actual_frac),y=(Deconvolution_fraction))) +
+         geom_point(aes(color=cell_type), size=2) +
+         stat_cor(method = "pearson",size=4, aes(label = ..r.label..))+
+         scale_color_manual (values = c ( "B cell"  =  "#8DD3C7" ,
+                                          "Dendritic cell" = "#B3DE69",
+                                          "Monocyte"  =  "#BEBADA",
+                                          "NK cell"  =  "#80B1D3" ,
+                                          "Progenitor cell" = "#573F94",
+                                          "T cell"  =  "#FDB462" ,
+                                          "Basophil"="#D9D9D9",
+                                          "Eosinophil"="#FCCDE5",
+                                          "Macrophage"  =  "#FFFFB3",
+                                          "Mast cell"="#E6B9A1",
+                                          "Neutrophil"  =  "#FB8072",
+                                          "Fibroblast cell"="#CCEBC5",
+                                          "Endothelial cell"  =  "#BC80BD" ,
+                                          "Plasmacytoid Dendritic cell"="darkgrey",
+                                          "Plasma cell"="#E6E6CA"), name="Cell Type") +
+        geom_smooth(method = "lm", formula = y~x, col = "black") +
+        # scale_shape_manual(values=c(0,1,2,3, 16, 17,11,4,8)) + theme(plot.title = element_text(hjust = 0.5)) +
+        theme(axis.text.y   = element_text(size=14),
+              axis.text.x   = element_text(size=14),
+              axis.title.y  = element_text(size=14),
+              axis.title.x  = element_text(size=14),
+              panel.background = element_blank(),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              axis.line = element_line(colour = "#C0C0C0"),
+              panel.border = element_rect(colour = "#C0C0C0", fill=NA, size=1)) +
+        xlab("Actual proportions") +
+        ylab("Predicted proportions") +
+        ylim(0,1)+
+        facet_wrap(~deconv_type, nrow = 1)+
+        theme( legend.position = "bottom",
+               legend.box = "vertical",
+        strip.text.x = element_text(size = 15),
+        axis.text.x = element_text(size = 8),
+        strip.text.y.right = element_text(size = 15),
+        axis.text.y.right  = element_text(size = 8))+
+        guides(
+        color = guide_legend(nrow = 3, byrow = TRUE),
+        shape = guide_legend(nrow = 3, byrow = TRUE))+
+        mytheme
+
+        save(corplot,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_corplot.RData"))
+        ggsave(filename=paste0("../manuscript/figs/",analysis_type,"_signature_matrix_corplot.png"),width = 12, height =6, units = "in", dpi = 300)
+
+  
+  # Aitchison distance
+  epsilon <- 0.001
+  
+  df= df %>% 
+    mutate(modified_cell_type=ifelse(cell_type %in% cell_types,cell_type,"Other cell" )) %>% 
+    group_by(deconv_type,Dataset,modified_cell_type) %>% 
+    summarise(Deconvolution_fraction= sum(Deconvolution_fraction),
+              actual_values=sum(actual_values),
+              actual_frac=sum(actual_frac))
+  
+# replacing NA with zero and adding a contant epsilon to all the actual_frac and predicted_fractions
+df=df %>% 
+   mutate(predicted_fraction=ifelse(is.na(Deconvolution_fraction)==TRUE,0,Deconvolution_fraction),
+          actual_frac=ifelse(is.na(actual_frac)==TRUE,0,actual_frac),
+          predicted_fraction=predicted_fraction+epsilon,
+          actual_frac=actual_frac+epsilon)
+
+# getting the sum of the 4 cell types in predicted proportions to normalise these values to 1 in the next step
+df_5_cells_summed_for_normalization= df %>% 
+                        group_by(Dataset,deconv_type) %>% 
+                        summarise(
+                        five_cells_sum_actual=sum(actual_frac), # not required as this is compositional by nature of the dataset simulated
+                        five_cells_sum_predicted=sum(predicted_fraction))
+
+df_norm= df %>%
+         left_join(df_5_cells_summed_for_normalization) %>% 
+         mutate(predicted_fraction_norm= predicted_fraction/five_cells_sum_predicted)
+
+
+# Calculating the geometric means of the actual values and predicted values per Dataset, Deconv_type and gene_panel for the 4 cell types
+df_geom_mean <-  df_norm%>% 
+  group_by(Dataset,deconv_type) %>%
+  summarize(
+    sum_actual_frac=sum(actual_frac),
+    sum_deconvolution_frac=sum(predicted_fraction_norm),
+    Actual_geom_mean = exp(sum(log(actual_frac))/length(actual_frac)),
+    Deconvolution_geom_mean = exp(sum(log(predicted_fraction_norm))/length(predicted_fraction_norm))
+  )
+
+
+  # Calculating aitchison distances
+  clr_calculation=df_norm %>% 
+    left_join(df_geom_mean) %>% 
+    mutate(
+    clr_observed = log(actual_frac / Actual_geom_mean),
+    clr_predicted = log(predicted_fraction_norm / Deconvolution_geom_mean),
+    clr_difference = clr_observed - clr_predicted) 
+  
+  aitchison_distance_calc= clr_calculation%>%
+    group_by(Dataset,deconv_type) %>% 
+    summarise(
+    aitchison_dist = sqrt(sum(clr_difference^2)),
+    .groups = "drop" # This drops the grouping structure after summarise
+    ) 
+
+  df_res=left_join(clr_calculation,aitchison_distance_calc) 
+  
+  # Plotting the difference between clr
+  aitchison_distribution=df_res %>% 
+  mutate(modified_cell_type=factor(modified_cell_type,levels=c("B cell","T cell","NK cell","Monocyte","Other cell"))) %>% 
+  ggplot(aes(x=clr_difference,y= forcats::fct_rev(modified_cell_type)))+
+  geom_point(aes(color = modified_cell_type), position = position_jitter(seed = 1, width = 0.2), alpha = 1, size=0.5) + 
+  geom_violin(alpha = 0.1, scale = "width", trim = FALSE, show.legend = FALSE)+
+  geom_boxplot(width=0.1,outliers=FALSE)+
+  scale_color_manual (values = c ( "B cell"  =  "#8DD3C7" ,
+                                   "Monocyte"  =  "#BEBADA",
+                                   "NK cell"  =  "#80B1D3" ,
+                                   "T cell"  =  "#FDB462",
+                                   "Other cell" = "grey"), name="Cell Type")+
+ labs(color = "")+
+ xlab("CLR Residual") +
+ ylab("")+
+ facet_wrap(~deconv_type,nrow = 1)+
+ mytheme
+  
+  
+save(aitchison_distribution,file = paste0("../manuscript/figs/",analysis_type,"_signature_matrix_aitchison_distribution_v2.RData"))
+ggsave(plot = aitchison_distribution,filename=paste0("../manuscript/figs/",analysis_type,"_signature_matrix_aitchison_distribution_v2.png"),width = 7, height =5, units = "in", dpi = 300)
+
+
+  distance=df_res %>% 
+       group_by(deconv_type, modified_cell_type) %>% 
+       summarise(mean_dist=mean(aitchison_dist))
+  
+  pearson_correrelation=corplot$data %>% 
+    group_by(deconv_type,cell_type) %>% 
+    summarise(correlation = cor(actual_frac, Deconvolution_fraction, method = "pearson"), .groups = "drop")
+  
+  summary_table=dplyr::left_join(distance,pearson_correrelation) %>% 
+       dplyr::rename("Signature Matrix"="deconv_type",
+                    "Cell type" = "modified_cell_type")
+
+  color_manual=c("Custom \nSignature"="#59a89c",
+               "Immunostates"="#e02b35",
+               "LM22"="#f0c571",
+               "SafeTME"="#a559aa",
+               "TIL10"="#082a54")
+
+  shape_manual=c("B cell"=66,
+               "T cell"=84,
+               "NK cell"=78,
+               "Monocyte"=77)
+
+summary_figure=summary_table %>% 
+  ggplot(aes(x=mean_dist,y=correlation))+
+  geom_point(aes(color=`Signature Matrix`,shape= `Cell type`), size=5,position = position_jitter(width = 0.01, height = 0.01))+
+  #geom_vline(xintercept = max(summary_table$mean_dist)/2, linetype = "dashed", color = "black") +  # Vertical line
+  #geom_hline(yintercept = max(summary_table$correlation)/2, linetype = "dashed", color = "black")+
+  scale_color_manual(values = color_manual)+
+  scale_shape_manual(values = shape_manual)+
+  mytheme+
+   guides(
+    color=guide_legend(ncol = 2),
+    shape = guide_legend(ncol = 2, title = "Cell Type")  # Set shape legend into 2 rows
+  ) +
+  theme(legend.box = "vertical")+
+  xlab("Mean Aitchison distance")+
+  ylab("Pearson correlation")
+  
+save(summary_figure,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_summary_v2.RData"))
+ggsave(plot=summary_figure,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_summary_v2.png"),width = 10.5, height =7, units = "in", dpi = 300) 
+}
+```
+
+
+# Updating CLR and Aitchison distance
+```{r}
+color_manual= c("quanTIseq" ="#ef476f",
+                "EPIC"="#50C878",
+                "MCPcounter*"="#06d6a0",
+                "SPOTlight"="#118ab2",
+                "SpatialDecon"="#073b4c",
+                "RCTD"="#f7931e",
+                "cell2location"="#9b5de5")
+
+plotting_clr_and_mean_aitchison_plots=function(df,parameter,analysis_type, cell_types,shape_manual,color_manual)
+
+{
+#epsilon <- 1e-6
+epsilon <- 0.001
+
+# Removing MCPcounter from calculations
+
+df= df %>% 
+    dplyr::filter(deconv_type !="MCPcounter*") %>% 
+    dplyr::mutate(deconv_type= droplevels(deconv_type))
+    
+
+df= df %>% 
+    mutate(modified_cell_type=ifelse(cell_type %in% cell_types,cell_type,"Other cell" )) %>% 
+    group_by(deconv_type,Dataset,!!sym(parameter),modified_cell_type) %>% 
+    summarise(Deconvolution_fraction= sum(Deconvolution_fraction),
+              actual_values=sum(actual_values),
+              actual_frac=sum(actual_frac))
+  
+# replacing NA with zero and adding a contant epsilon to all the actual_frac and predicted_fractions
+df=df %>% 
+   mutate(predicted_fraction=ifelse(is.na(Deconvolution_fraction)==TRUE,0,Deconvolution_fraction),
+          actual_frac=ifelse(is.na(actual_frac)==TRUE,0,actual_frac),
+          predicted_fraction=predicted_fraction+epsilon,
+          actual_frac=actual_frac+epsilon)
+
+# getting the sum of the 4 cell types in predicted proportions to normalise these values to 1 in the next step
+df_5_cells_summed_for_normalization= df %>% 
+                        group_by(Dataset,deconv_type,!!sym(parameter)) %>% 
+                        summarise(
+                        five_cells_sum_actual=sum(actual_frac), # not required as this is compositional by nature of the dataset simulated
+                        five_cells_sum_predicted=sum(predicted_fraction))
+
+# Normalisation the predicted proportions of the 4 cells types that we want
+df_norm= df %>%
+         left_join(df_5_cells_summed_for_normalization) %>% 
+         mutate(predicted_fraction_norm= predicted_fraction/five_cells_sum_predicted)
+
+
+# Calculating the geometric means of the actual values and predicted values per Dataset, Deconv_type and gene_panel for the 4 cell types
+df_geom_mean <-  df_norm%>% 
+  group_by(Dataset,deconv_type, !!sym(parameter)) %>%
+  summarize(
+    sum_actual_frac=sum(actual_frac),
+    sum_deconvolution_frac=sum(predicted_fraction_norm),
+    Actual_geom_mean = exp(sum(log(actual_frac))/length(actual_frac)),
+    Deconvolution_geom_mean = exp(sum(log(predicted_fraction_norm))/length(predicted_fraction_norm))
+  )
+
+
+  # Calculating aitchison distances
+  clr_calculation=df_norm %>% 
+    left_join(df_geom_mean) %>% 
+    mutate(
+    clr_observed = log(actual_frac / Actual_geom_mean),
+    clr_predicted = log(predicted_fraction_norm / Deconvolution_geom_mean),
+    clr_difference = clr_observed - clr_predicted) 
+  
+  aitchison_distance_calc= clr_calculation%>%
+    group_by(Dataset,deconv_type, !!sym(parameter)) %>% 
+    summarise(
+    aitchison_dist = sqrt(sum(clr_difference^2)),
+    .groups = "drop" # This drops the grouping structure after summarise
+    ) 
+
+  df_res=left_join(clr_calculation,aitchison_distance_calc) 
+  
+  # Plotting the difference between clr
+  aitchison_distribution=df_res %>% 
+  ggplot(aes(x=clr_difference,y= forcats::fct_rev(!!sym(parameter))))+
+  geom_point(aes(color = modified_cell_type), position = position_jitter(seed = 1, width = 0.2), alpha = 1, size=0.5) + 
+  geom_violin(alpha = 0.1, scale = "width", trim = FALSE, show.legend = FALSE)+
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red")+
+  scale_color_manual (values = c ( "B cell"  =  "#8DD3C7" ,
+                                   "Monocyte"  =  "#BEBADA",
+                                   "NK cell"  =  "#80B1D3" ,
+                                   "T cell"  =  "#FDB462",
+                                   "Other cell" = "grey"),name="Cell Type")+
+  scale_fill_manual (values = c ( "B cell"  =  "#8DD3C7" ,
+                                   "Monocyte"  =  "#BEBADA",
+                                   "NK cell"  =  "#80B1D3" ,
+                                   "T cell"  =  "#FDB462",
+                                   "Other cell" = "grey"))+
+ labs(color = "")+
+ xlab("CLR Residual") +
+ ylab("")+
+ facet_wrap(~deconv_type,nrow = 1)+
+ mytheme
+
+save(aitchison_distribution,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_aitchison_distribution_v2.RData"))
+ggsave(plot = aitchison_distribution,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_aitchison_distribution_v2.png"),width = 15, height =4, units = "in", dpi = 300)
+
+# save(aitchison_distribution,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_aitchison_distribution_v2_with_epic_pseudobulks.RData"))
+# ggsave(plot = aitchison_distribution,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_aitchison_distribution_v2_with_epic_pseudobulks.png"),width = 15, height =4, units = "in", dpi = 300)
+
+# color_manual= c("quanTIseq" ="#ef476f",
+#                 "EPIC"="#ffd166",
+#                 "MCPcounter*"="#06d6a0",
+#                 "SPOTlight"="#118ab2",
+#                 "SpatialDecon"="#073b4c",
+#                 "RCTD"="#f7931e",
+#                 "cell2location"="#9b5de5")
+
+  
+# Creating Summary Figure
+ load(paste0("../manuscript/figs/",analysis_type,"_",parameter,"_corplot.RData"))
+  pearson_correrelation=corplot$data %>% 
+    group_by(deconv_type,!!sym(parameter)) %>% 
+    summarise(correlation = cor(actual_frac, Deconvolution_fraction, method = "pearson"), .groups = "drop")
+  
+  distance=df_res %>% 
+       group_by(deconv_type,!!sym(parameter)) %>% 
+       summarise(mean_dist=mean(aitchison_dist))
+  
+  summary_table=dplyr::left_join(distance,pearson_correrelation) %>% 
+       dplyr::rename("Deconvolution Method"="deconv_type",
+                    !!gsub("_", " ", parameter) := !!sym(parameter))
+  
+  clean_parameter= gsub("_", " ", parameter)
+
+summary_figure=summary_table %>% 
+  ggplot(aes(x=mean_dist,y=correlation))+
+  geom_point(aes(color=`Deconvolution Method`,shape= !!sym(clean_parameter)), size=5,position = position_jitter(width = 0.01, height = 0.01))+
+  #geom_vline(xintercept = max(summary_table$mean_dist)/2, linetype = "dashed", color = "black") +  # Vertical line
+  #geom_hline(yintercept = max(summary_table$correlation)/2, linetype = "dashed", color = "black")+
+  scale_color_manual(values = color_manual)+
+  scale_shape_manual(values = shape_manual)+
+  mytheme+
+   guides(
+    color=guide_legend(order = 2,ncol = 2),
+    shape = guide_legend(order=1, ncol = 2, title = str_to_title(clean_parameter)))+# Set shape legend into 2 rows
+  theme(legend.box = "vertical" )+
+  xlab("Mean Aitchison distance")+
+  ylab("Pearson correlation")
+  
+save(summary_figure,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_summary_v2.RData"))
+ggsave(plot=summary_figure,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_summary_v2.png"),width = 10.5, height =7, units = "in", dpi = 300)
+
+# save(summary_figure,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_summary_v2_with_epic_pseudobulks.RData"))
+# ggsave(plot=summary_figure,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_summary_v2_with_epic_pseudobulks.png"),width = 10.5, height =7, units = "in", dpi = 300)
+
+}
+```
+
+
+shapes guide= https://stackoverflow.com/questions/46803260/assigning-40-shapes-or-more-in-scale-shape-manual
+
+# Plotting Gene Panel ( For Fig 1 and Fig S1)
+```{r}
+parameter="Gene_panel"
+cell_types=c("B cell","T cell","NK cell","Monocyte")
+shape_manual= c("All detected \ngenes"=65,
+                "10x Visium \nWTA Probe-set"=86,
+                "Nanostring WTA"=78,
+                "Targeted \nPan-Cancer"= 80,
+                "Targeted \nImmunology"= 73,
+                "BD Rhapsody"=66,
+                "Immuno-Oncology \n Xenium Panel"=88)
+
+# PBMC
+analysis_type="PBMC"
+#gene_panel=readRDS("../Results/Gene_panel/PBMC_gene_panel_with_epic_pseudobulks_24032026.RDS") 
+gene_panel=readRDS("../Results/Gene_panel/PBMC_gene_panel_24032026.RDS") 
+gene_panel=gene_panel %>%
+  mutate(Gene_panel = fct_recode(Gene_panel,"Immuno-Oncology \n Xenium Panel" = "Xenium \nImmuno-Oncology Panel")) %>% 
+  mutate(deconv_type=as.character(deconv_type)) %>% 
+  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
+  filter(deconv_type != "SpatialDecon \n custom signature") %>% 
+  mutate(deconv_type = ifelse(deconv_type=="SpatialDecon \n default signature", "SpatialDecon", deconv_type)) %>% 
+  mutate(deconv_type=factor(deconv_type,levels=c("quanTIseq",
+                                                "EPIC",
+                                                 "MCPcounter*",
+                                                 "SPOTlight",
+                                                 "SpatialDecon",
+                                                "RCTD",
+                                                "cell2location"))) %>% 
+  dplyr::filter(Gene_panel != "Immuno-Oncology \n Xenium Panel") %>%
+  mutate(Gene_panel = droplevels(Gene_panel))
+
+correlation_plots(gene_panel,"Gene_panel",analysis_type)
+plotting_clr_and_mean_aitchison_plots(gene_panel,parameter,analysis_type, cell_types,shape_manual,color_manual)
+
+#AML
+analysis_type="AML"
+gene_panel_aml=readRDS("../Results/Gene_panel/AML_gene_panel_24032026.RDS") 
+gene_panel_aml=gene_panel_aml %>%
+  mutate(Gene_panel = fct_recode(Gene_panel,"Immuno-Oncology \n Xenium Panel" = "Xenium \nImmuno-Oncology Panel")) %>% 
+  mutate(deconv_type=as.character(deconv_type)) %>% 
+  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
+  filter(deconv_type != "SpatialDecon \n custom signature") %>% 
+  mutate(deconv_type = ifelse(deconv_type=="SpatialDecon \n default signature", "SpatialDecon", deconv_type)) %>% 
+  mutate(deconv_type=factor(deconv_type,levels=c("quanTIseq",
+                                                "EPIC",
+                                                 "MCPcounter*",
+                                                 "SPOTlight",
+                                                 "SpatialDecon",
+                                                "RCTD",
+                                                "cell2location"))) %>% 
+  dplyr::filter(Gene_panel != "Immuno-Oncology \n Xenium Panel") %>%
+  mutate(Gene_panel = droplevels(Gene_panel))
+
+correlation_plots(gene_panel_aml,"Gene_panel",analysis_type)
+plotting_clr_and_mean_aitchison_plots(gene_panel_aml,parameter,analysis_type, cell_types,shape_manual,color_manual)
+
+
+# Different EPIC mode comparions
+analysis_type="PBMC_epic_comparions"
+gene_panel_epic=readRDS("../Results/Gene_panel/PBMCepic_comparisons_gene_panel_24032026.RDS") 
+gene_panel_epic=gene_panel_epic %>%
+  mutate(Gene_panel = fct_recode(Gene_panel,"Immuno-Oncology \n Xenium Panel" = "Xenium \nImmuno-Oncology Panel")) %>% 
+  mutate(deconv_type=as.character(deconv_type)) %>% 
+  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
+  dplyr::filter(Gene_panel %in%  c("10x Visium \nWTA Probe-set","Nanostring WTA")) %>%
+  mutate(Gene_panel = droplevels(Gene_panel),
+         deconv_type=factor(deconv_type))
+
+color_manual= c("With 3 cell types \ncellFractions" ="#ef476f",
+                "With 3 cell types \nmRNAProportions"="#ffd166",
+                "With 4 cell types \ncellFractions"="#06d6a0",
+                "With 4 cell types \nmRNAProportions"="#9b5de5")
+
+correlation_plots(gene_panel_epic,"Gene_panel",analysis_type)
+plotting_clr_and_mean_aitchison_plots(gene_panel_epic,parameter,analysis_type, cell_types,shape_manual,color_manual)
+
+
+# PBMC with all with epic pseudobulks
+analysis_type="PBMC_with_epic_pseudobulks_for_all"
+gene_panel=readRDS("../Results/Gene_panel/PBMC_gene_panel_with_epic_pseudobulks_24032026.RDS") 
+gene_panel=gene_panel %>%
+  mutate(Gene_panel = fct_recode(Gene_panel,"Immuno-Oncology \n Xenium Panel" = "Xenium \nImmuno-Oncology Panel")) %>% 
+  mutate(deconv_type=as.character(deconv_type)) %>% 
+  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
+  filter(deconv_type != "SpatialDecon \n custom signature") %>% 
+  mutate(deconv_type = ifelse(deconv_type=="SpatialDecon \n default signature", "SpatialDecon", deconv_type)) %>% 
+  mutate(deconv_type=factor(deconv_type,levels=c("quanTIseq",
+                                                "EPIC",
+                                                 "MCPcounter*",
+                                                 "SPOTlight",
+                                                 "SpatialDecon",
+                                                "RCTD",
+                                                "cell2location"))) %>% 
+  dplyr::filter(Gene_panel != "Immuno-Oncology \n Xenium Panel") %>%
+  mutate(Gene_panel = droplevels(Gene_panel))
+
+correlation_plots(gene_panel,"Gene_panel",analysis_type)
+plotting_clr_and_mean_aitchison_plots(gene_panel,parameter,analysis_type, cell_types,shape_manual,color_manual)
+
+```
+
+# Normalisation
+```{r}
+shape_manual= c("Raw"=82,
+                "TPM normalised"=84,
+                "Q3 normalised"=51,
+                "Quantile normalised"=81)
+
+# PBMC
+parameter="Normalisation"
+cell_types=c("B cell","T cell","NK cell","Monocyte")
+analysis_type="PBMC"
+load(paste0("../Results/Normalisation/",analysis_type,"_normalisation_08042026.RData"))
+norm_PBMC=normalisation_res %>% 
+          mutate(Normalisation= str_replace_all(Normalisation, "normalized", "normalised")) %>% 
+          mutate(Normalisation= fct_relevel(Normalisation, "Raw", "TPM normalised", "Q3 normalised","Quantile normalised"))%>% 
+          mutate(deconv_type=as.character(deconv_type)) %>% 
+          mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
+          filter(deconv_type != "SpatialDecon \n custom signature") %>% 
+          mutate(deconv_type = ifelse(deconv_type=="SpatialDecon \n default signature", "SpatialDecon", deconv_type)) %>% 
+          mutate(deconv_type=factor(deconv_type,levels=c("quanTIseq",
+                                                        "EPIC",
+                                                         "MCPcounter*",
+                                                         "SPOTlight",
+                                                         "SpatialDecon",
+                                                        "RCTD",
+                                                        "cell2location")))
+
+correlation_plots(norm_PBMC,parameter,analysis_type)
+plotting_clr_and_mean_aitchison_plots(norm_PBMC,parameter,analysis_type, cell_types,shape_manual,color_manual)
+
+# AML
+parameter="Normalisation"
+cell_types=c("B cell","T cell","NK cell","Monocyte")
+analysis_type="AML"
+load(paste0("../Results/Normalisation/",analysis_type,"_normalisation_08042026.RData"))
+norm_AML=normalisation_res %>% 
+         mutate(Normalisation= str_replace_all(Normalisation, "normalized", "normalised")) %>% 
+          mutate(Normalisation= fct_relevel(Normalisation, "Raw", "TPM normalised", "Q3 normalised","Quantile normalised"))%>% 
+          mutate(deconv_type=as.character(deconv_type)) %>% 
+          mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
+          filter(deconv_type != "SpatialDecon \n custom signature") %>% 
+          mutate(deconv_type = ifelse(deconv_type=="SpatialDecon \n default signature", "SpatialDecon", deconv_type)) %>% 
+          mutate(deconv_type=factor(deconv_type,levels=c("quanTIseq",
+                                                        "EPIC",
+                                                         "MCPcounter*",
+                                                         "SPOTlight",
+                                                         "SpatialDecon",
+                                                         "RCTD",
+                                                        "cell2location")))
+
+
+correlation_plots(norm_AML,parameter,analysis_type)
+plotting_clr_and_mean_aitchison_plots(norm_AML,parameter,analysis_type, cell_types,shape_manual,color_manual)
+```
+
+# Signature Matrix
+```{r}
+### SpatialDecon
+parameter="deconv_type"
+cell_types=c("B cell","T cell","NK cell","Monocyte")
+analysis_type="PBMC"
+load(paste0("../Results/Signature_matrix/",analysis_type,"_signature_matrix.RData"))
+pbmc_signature_matrix=comp_signature_matrix_res %>% 
+                 mutate(deconv_type=ifelse(deconv_type=="Custom PBMC 8k \nSignature","Custom \nSignature",deconv_type))
+pbmc_df=pbmc_signature_matrix
+correlation_plots_signature(pbmc_df,parameter,analysis_type)
+
+
+#AML
+analysis_type="AML"
+load(paste0("../Results/Signature_matrix/",analysis_type,"_signature_matrix.RData"))
+aml_signature_matrix=comp_signature_matrix_res %>% 
+                 mutate(deconv_type=ifelse(deconv_type=="Custom PBMC 8k \nSignature","Custom \nSignature",deconv_type))
+aml_df=aml_signature_matrix
+correlation_plots_signature(aml_df,parameter,analysis_type)
+
+
+# Addressing the open question:  "Therefore, using the TIL10 signature is advisable when working with a smaller count matrix (fewer than 500 genes) and lacking a single-cell reference." -> could be confirmed by applying to analyses in Fig. 1
+# cell_types=c("B cell","T cell","NK cell","Monocyte")
+# analysis_type="PBMC_xenium_panel"
+# load(paste0("../Results/Signature_matrix/PBMC_signature_matrix_xenium_panel_PBMC.RData"))
+# signature_matrix=comp_signature_matrix_res %>% 
+#                  mutate(deconv_type=ifelse(deconv_type=="Custom","Custom \nSignature",deconv_type))
+# df=signature_matrix
+# correlation_plots_signature(df,parameter,analysis_type)
+# 
+# 
+# analysis_type="AML_xenium_panel"
+# load(paste0("../Results/Signature_matrix/AML_signature_matrix_xenium_panel_AML.RData"))
+# signature_matrix=comp_signature_matrix_res %>% 
+#                  mutate(deconv_type=ifelse(deconv_type=="Custom","Custom \nSignature",deconv_type))
+# df=signature_matrix
+# correlation_plots_signature(df,parameter,analysis_type)
+
+## Cibersort
+### SpatialDecon
+parameter="deconv_type"
+cell_types=c("B cell","T cell","NK cell","Monocyte")
+analysis_type="PBMC_cibersort" 
+load(paste0("../Results/Signature_Matrix/",analysis_type,"_signature_matrix.RData"))
+pbmc_signature_matrix=comp_signature_matrix_res
+pbmc_df=pbmc_signature_matrix
+correlation_plots_signature(pbmc_df,parameter,analysis_type)
+
+
+#AML
+analysis_type="bone_marrow_cibersort"
+load(paste0("../Results/Signature_Matrix/",analysis_type,"_signature_matrix.RData"))
+aml_signature_matrix=comp_signature_matrix_res
+aml_df=aml_signature_matrix
+correlation_plots_signature(aml_df,parameter,analysis_type)
+```
+
+
+# Sequencing depth
+```{r}
+shape_manual= c("0.002% reads"=49,
+                "0.02% reads"=50,
+                "1% reads"=51,
+                "20% reads"=52,
+                "60% reads"=53,
+                "100% reads"= 54)
+
+# cell Ranger PBMC
+load("../Results/Sequencing_depth/cell_ranger/PBMC_sequencing_depth_09042026.RData") 
+parameter="Sequencing_depth"
+cell_types=c("B cell","T cell","NK cell","Monocyte")
+analysis_type="PBMC"
+df=sequencing_depth_res %>% 
+   #dplyr::filter(deconv_type !="SpotLight") %>% 
+   dplyr::filter(Sequencing_depth %in% c("100% reads","60% reads","20% reads","1% reads", "0.02% reads","0.002% reads") ) %>% 
+   mutate(Sequencing_depth=droplevels(Sequencing_depth))%>% 
+   mutate(Sequencing_depth=factor(Sequencing_depth, levels = rev(levels(Sequencing_depth))))
+
+save(df,file=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_aitchison_distribution.RData"))
+
+correlation_plots(df,parameter,analysis_type)
+plotting_clr_and_mean_aitchison_plots(df,parameter,analysis_type, cell_types,shape_manual,color_manual)
+
+
+# cell Ranger Bone marrow 20k
+load("../Results/Sequencing_depth/cell_ranger/bone_marrow_sequencing_depth_09042026.RData") 
+parameter="Sequencing_depth"
+cell_types=c("B cell","T cell","NK cell","Monocyte")
+analysis_type="bone_marrow"
+df=sequencing_depth_res %>% 
+   #dplyr::filter(deconv_type !="SpotLight") %>% 
+   dplyr::filter(Sequencing_depth %in% c("100% reads","60% reads","20% reads","1% reads", "0.02% reads","0.002% reads") ) %>% 
+   mutate(Sequencing_depth=droplevels(Sequencing_depth))%>% 
+   mutate(Sequencing_depth=factor(Sequencing_depth, levels = rev(levels(Sequencing_depth))))
+
+save(df,file=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_aitchison_distribution.RData"))
+
+correlation_plots(df,parameter,analysis_type)
+plotting_clr_and_mean_aitchison_plots(df,parameter,analysis_type, cell_types,shape_manual,color_manual)
+```
+
+# Spot Size
+```{r}
+shape_manual=c("6-16 cells \n in Sample/Spot"=13,
+               "75-496 cells \n in Sample/Spot"=12,
+               "600-3996 cells \n in Sample/Spot"=6)
+
+               
+parameter="Max_spot_size"
+cell_types=c("B cell","T cell","NK cell","Monocyte")
+analysis_type="PBMC"
+spot_size= readRDS("../Results/Max_spot_size/PBMC_spot_size_09042026.RDS") %>% 
+           filter(deconv_type !="SpatialDecon \n custom signature") %>% 
+           mutate(deconv_type = deconv_type %>%
+           fct_recode(SpatialDecon = "SpatialDecon \n default signature") %>%
+           fct_drop()) %>% 
+           mutate(Max_spot_size= factor(Max_spot_size,
+                                   levels=c("600-3996 cells \n in Sample/Spot","75-496 cells \n in Sample/Spot","6-16 cells \n in Sample/Spot"))) %>% 
+  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type))
+
+correlation_plots(spot_size,parameter,analysis_type)
+plotting_clr_and_mean_aitchison_plots(spot_size,parameter,analysis_type, cell_types,shape_manual,color_manual)
+```
+
+# Sequencing depth with signature matrix
+```{r}
+shape_manual= c("0.002% reads"=49,
+                "0.02% reads"=50,
+                "1% reads"=51,
+                "20% reads"=52,
+                "60% reads"=53,
+                "100% reads"= 54)
+
+color_manual=c("Custom \nSignature"="#59a89c",
+               "Immunostates"="#e02b35",
+               "LM22"="#f0c571",
+               "SafeTME"="#a559aa",
+               "TIL10"="#082a54")
+               
+parameter="Sequencing_depth"
+cell_types=c("B cell","T cell","NK cell","Monocyte")
+analysis_type="PBMC_signature_with_sequencing"
+ load("../Results/Signature_Matrix/PBMC_signature_matrix_with_sequencing_depth.RData") 
+           
+   
+sig_mat= comp_signature_matrix_res %>% 
+   mutate(deconv_type=ifelse(deconv_type=="Custom","Custom \nSignature",deconv_type)) %>% 
+   mutate(deconv_type=factor(deconv_type, levels = c("Custom \nSignature","Immunostates","LM22","SafeTME","TIL10"))) %>% 
+           dplyr::filter(Sequencing_depth %in% c("100% reads","60% reads","20% reads","1% reads", "0.02% reads","0.002% reads") ) %>% 
+   mutate(Sequencing_depth=droplevels(Sequencing_depth))%>% 
+   mutate(Sequencing_depth=factor(Sequencing_depth, levels = rev(levels(Sequencing_depth)))) %>% 
+  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type))
+
+correlation_plots(sig_mat,parameter,analysis_type)
+plotting_clr_and_mean_aitchison_plots(sig_mat,parameter,analysis_type, cell_types,shape_manual,color_manual)
+```
+
