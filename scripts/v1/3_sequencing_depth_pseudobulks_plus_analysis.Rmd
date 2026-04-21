@@ -1,0 +1,650 @@
+---
+title: "sequencing_depth"
+author: "Aakanksha Singh"
+date: "2024-12-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(DropletUtils)
+library(Matrix)
+library(SingleCellExperiment)
+library(org.Hs.eg.db)
+library(Seurat)
+source("./functions.R")
+```
+
+
+```{r}
+setClassUnion("ExpData", c("matrix", "SummarizedExperiment"))
+```
+
+
+```{r}
+processing_sce_modified_for_sequencing_depth <- function(dataset,title) 
+ {   
+   # Step 1: Quality Control
+   stats <- high.mito <- list()
+   unfiltered<-dataset
+   
+   current <- dataset
+   #is.mito <- grep("MT", rowData(dataset)$Symbol_TENx)
+   is.mito <- grep("MT", rowData(dataset)$Symbol)
+   stats <- perCellQCMetrics(dataset, subsets=list(Mito=is.mito))
+   high.mito <- isOutlier(stats$subsets_Mito_percent, type="higher")
+   #dataset <- dataset[,!high.mito]
+   dataset=dataset[,!high.mito & !is.na(high.mito)]
+   
+   current <- unfiltered 
+   colData(current) <- cbind(colData(current), stats)
+   current$discard <- high.mito
+   
+   # Note: The code line below generated a plot highlighting the mito genes as outliers
+   qcplots<- plotColData(current, x="sum", y="subsets_Mito_percent",
+                         colour_by="discard") + scale_x_log10()
+   print("Processing sce : Step 1/7 Done")
+   
+   # Step 2: Log Normalisation
+   dataset <- logNormCounts(dataset)
+   print("Processing sce : Step 2/7 Done")
+   
+   # Step 3: Variance Modelling
+   #dec <- modelGeneVar(dataset)
+   # hvgs <-getTopHVGs(dataset, prop=0.1)
+   # 
+   # curdec <- dec
+   # curfit <- metadata(curdec)
+   # curve(curfit$trend(x), col='dodgerblue', lwd=2)
+   print("Processing sce : Step 3/7 Done")
+   
+   # Step 4: Dimensionality Reduction (PCA, tSNE, UMAP)
+   
+   set.seed(10000)
+   dataset <- runPCA(dataset)
+   
+   set.seed(100000)
+   dataset <- runTSNE(dataset)
+   
+   set.seed(1000000)
+   dataset <- runUMAP(dataset)
+   print("Processing sce : Step 4/7 Done")
+   
+   # Step 5: Clustering
+   g <- buildSNNGraph(dataset, k=10)
+   clust <- igraph::cluster_walktrap(g)$membership
+   colLabels(dataset)  <- factor(clust)
+   print("Processing sce : Step 5/7 Done")
+  
+   # Step 6: Cell type annotation
+   ref<-celldex::MonacoImmuneData(ensembl=TRUE, cell.ont="all")
+   predicted_celltype <- SingleR(dataset, ref=ref, labels=ref$label.main)
+   
+   colData(dataset)$predicted_celltype <- predicted_celltype$labels
+   tsne <- scater::plotTSNE(dataset, colour_by="predicted_celltype") + ggtitle(title)
+   print("Processing sce : Step 6/7 Done")
+   
+   # Step 7: Adding an addition column that annotes all T cells the same
+   # Adding an additional column with consolidated cell types, 
+   # removing rows with no Hugo Symbol,
+   # Setting the Hugo symbol as rownames instead of ensmbl ids
+   
+   dataset$cell<-dataset$predicted_celltype
+   colData(dataset)$cell <- ifelse(colData(dataset)$cell %in% c("CD8+ T cells", "CD4+ T cells"), "T cells", colData(dataset)$cell)
+   rownames(dataset) <- rowData(dataset)$Symbol
+   dataset<-dataset[!(is.na(row.names(dataset))),]
+   print("Processing sce : Step 7/7 Done")
+   print(table(dataset$cell))
+   
+   return(dataset)
+   
+ }
+```
+
+## PART 1: analysing data from cell ranger ##
+# Reading the 10x counts from multiplexed samples (To be done only once)
+# The data is processed and provided in the intermediate_data folder
+```{r}
+# samples=c("bone_marrow_20k_0.8","bone_marrow_20k_0.6","bone_marrow_20k_0.4","bone_marrow_20k_0.2","bone_marrow_20k_0.01","bone_marrow_20k_0.001","bone_marrow_20k_0.0002","bone_marrow_20k_0.00002")
+# 
+# 
+# for (sample_id in samples)
+# {
+#  
+#     base_path= paste0("~/mnt_AG_Imkeller/group_members/asingh/sequencing_depth_datasets/bone_marrow_20k/outputs/cellranger/",sample_id,"/outs/per_sample_outs/")
+#   print(paste0("Processing started for sample ",sample_id))
+#   
+#   sample_paths <- c(paste0(base_path,gsub("\\.","_", sample_id),"/count/sample_filtered_feature_bc_matrix"))
+# 
+#   # reading the count matrices
+#   count_matrices <- lapply(sample_paths, function(path) {
+#     Read10X(data.dir = path)
+#   })
+# 
+#   # Aggregating the count matrices
+#   for (i in seq_along(count_matrices)) {
+#   colnames(count_matrices[[i]]) <- paste0(colnames(count_matrices[[i]]), "_Donor", i)
+#   }
+# 
+#   combined_matrix <- do.call(cbind, count_matrices)
+# 
+#   # Converting the dcg matrix to SingleCellExperiment Object
+#   sce_object <- SingleCellExperiment(
+#     assays = list(counts = combined_matrix))
+# 
+#   # The rownames in the object are sometimes gene names other times the ENSEMNL ids, homogenising the names
+#   gene_ids <- rownames(sce_object)
+# 
+#   rowdata_df= gene_ids %>%
+#           as.data.frame() %>%
+#           rename(Gene = ".") %>%
+#           mutate(ENSEMBL_ID=ifelse(str_sub(Gene,0,4)=="ENSG",Gene,""),
+#                  Symbol=ifelse(str_sub(Gene,0,4)!="ENSG",Gene,""))
+# 
+#   rowdata_df$ensid = mapIds(org.Hs.eg.db,
+#                     keys=rowdata_df$Symbol,
+#                     column="ENSEMBL",
+#                     keytype="SYMBOL",
+#                     multiVals="first")
+# 
+#   rowdata_df$symbol_from_ensembl = mapIds(org.Hs.eg.db,
+#                     keys=rowdata_df$ENSEMBL_ID,
+#                     column="SYMBOL",
+#                     keytype="ENSEMBL",
+#                     multiVals="first")
+# 
+#   rowdata_df=rowdata_df %>%
+#     mutate(Symbol=ifelse(Symbol=="",symbol_from_ensembl,Symbol),
+#            ENSEMBL_ID=ifelse(ENSEMBL_ID=="",ensid,ENSEMBL_ID)) %>%
+#     dplyr::select(-ensid,-symbol_from_ensembl) %>%
+#     mutate(original_name=Gene) %>%
+#     column_to_rownames(var = "Gene") %>%
+#     DataFrame()
+# 
+#   rowData(sce_object)=rowdata_df
+# 
+#   # removing the features that do not have a ensemblid in the dataset
+#   sce_object=sce_object[is.na(rowData(sce_object)$ENSEMBL_ID)==FALSE,]
+#   rownames(sce_object)=rowData(sce_object)$ENSEMBL_ID
+# 
+#   # Processing the SingleCellExperiment Object and saving it
+#   processed_sce<-processing_sce_modified_for_sequencing_depth(sce_object,sample_id)
+#   saveRDS(processed_sce, file = paste0("../intermediate_data/processed_sces/sequencing_depth/",sample_id,"_cell_ranger.rds"))
+#   print(paste0("Processing completed for sample ", sample_id))
+# }
+# 
+
+```
+
+# Changing the annotations generated by Single R, so I take the annotations generated with 100% sequencing depth as the ground truth and perform subsetting based on that
+
+PBMC
+```{r}
+pbmc20k_1 <- readRDS("../intermediate_data/processed_sces/sequencing_depth/PBMC20k_1_cell_ranger.rds")
+cell_count_pbmc20k_1 <- as.data.frame(table(pbmc20k_1$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+# Generating the "ground truth" in this case
+ground_truth_cell_annotations=colData(pbmc20k_1) %>% 
+                              as.data.frame() %>% 
+                              dplyr::select(cell) %>% 
+                              rownames_to_column(var="cell_barcode")
+
+# Function for putting the ground truth in all the sce with the differential sequencing depths
+
+changing_cell_annotations <- function(sequencing_depth,ground_truth_cell_annotations)
+{
+  sce_test <- readRDS(paste0("../intermediate_data/processed_sces/sequencing_depth/PBMC20k_",sequencing_depth,"_cell_ranger.rds"))
+
+  updated_coldata=colData(sce_test) %>% 
+                as.data.frame() %>% 
+                rownames_to_column(var="cell_barcode") %>% 
+                dplyr::rename("independent_cell_annotation"=cell) %>% 
+                left_join(ground_truth_cell_annotations,by=c("cell_barcode"="cell_barcode")) %>% 
+                column_to_rownames(var="cell_barcode") %>% 
+                DataFrame()
+  colData(sce_test)=updated_coldata
+  sce_test=sce_test[,is.na(sce_test$cell)==FALSE]
+  return(sce_test)
+}
+
+
+pbmc20k_0.00002 <- changing_cell_annotations("0.00002",ground_truth_cell_annotations)
+cell_count_pbmc20k_0.00002 <- as.data.frame(table(pbmc20k_0.00002$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+pbmc20k_0.0002 <- changing_cell_annotations("0.0002",ground_truth_cell_annotations)
+cell_count_pbmc20k_0.0002 <- as.data.frame(table(pbmc20k_0.0002$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+pbmc20k_0.001 <- changing_cell_annotations("0.001",ground_truth_cell_annotations)
+cell_count_pbmc20k_0.001 <- as.data.frame(table(pbmc20k_0.001$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+pbmc20k_0.01 <- changing_cell_annotations("0.01",ground_truth_cell_annotations)
+cell_count_pbmc20k_0.01 <- as.data.frame(table(pbmc20k_0.01$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+pbmc20k_0.2 <- changing_cell_annotations("0.2",ground_truth_cell_annotations)
+cell_count_pbmc20k_0.2 <- as.data.frame(table(pbmc20k_0.2$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+pbmc20k_0.4 <- changing_cell_annotations("0.4",ground_truth_cell_annotations)
+cell_count_pbmc20k_0.4 <- as.data.frame(table(pbmc20k_0.4$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+pbmc20k_0.6 <- changing_cell_annotations("0.6",ground_truth_cell_annotations)
+cell_count_pbmc20k_0.6 <- as.data.frame(table(pbmc20k_0.6$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+pbmc20k_0.8 <- changing_cell_annotations("0.8",ground_truth_cell_annotations)
+cell_count_pbmc20k_0.8 <- as.data.frame(table(pbmc20k_0.8$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+pbmc20k_0.00002
+
+
+```
+
+# bone_marrow
+```{r}
+bone_marrow_20k_1 <- readRDS("../intermediate_data/processed_sces/sequencing_depth/bone_marrow_20k_1_cell_ranger.rds")
+cell_count_bone_marrow_20k_1 <- as.data.frame(table(bone_marrow_20k_1$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+# Generating the "ground truth" in this case
+ground_truth_cell_annotations=colData(bone_marrow_20k_1) %>% 
+                              as.data.frame() %>% 
+                              dplyr::select(cell) %>% 
+                              rownames_to_column(var="cell_barcode")
+
+# Function for putting the ground truth in all the sce with the differential sequencing depths
+
+changing_cell_annotations <- function(sequencing_depth,ground_truth_cell_annotations)
+{
+  sce_test <- readRDS(paste0("../intermediate_data/processed_sces/sequencing_depth/bone_marrow_20k_",sequencing_depth,"_cell_ranger.rds"))
+
+  updated_coldata=colData(sce_test) %>% 
+                as.data.frame() %>% 
+                rownames_to_column(var="cell_barcode") %>% 
+                dplyr::rename("independent_cell_annotation"=cell) %>% 
+                left_join(ground_truth_cell_annotations,by=c("cell_barcode"="cell_barcode")) %>% 
+                column_to_rownames(var="cell_barcode") %>% 
+                DataFrame()
+  colData(sce_test)=updated_coldata
+  sce_test=sce_test[,is.na(sce_test$cell)==FALSE]
+  return(sce_test)
+}
+
+
+bone_marrow_20k_0.00002 <- changing_cell_annotations("0.00002",ground_truth_cell_annotations)
+cell_count_bone_marrow_20k_0.00002 <- as.data.frame(table(bone_marrow_20k_0.00002$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+bone_marrow_20k_0.0002 <- changing_cell_annotations("0.0002",ground_truth_cell_annotations)
+cell_count_bone_marrow_20k_0.0002 <- as.data.frame(table(bone_marrow_20k_0.0002$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+bone_marrow_20k_0.001 <- changing_cell_annotations("0.001",ground_truth_cell_annotations)
+cell_count_bone_marrow_20k_0.001 <- as.data.frame(table(bone_marrow_20k_0.001$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+bone_marrow_20k_0.01 <- changing_cell_annotations("0.01",ground_truth_cell_annotations)
+cell_count_bone_marrow_20k_0.01 <- as.data.frame(table(bone_marrow_20k_0.01$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+bone_marrow_20k_0.2 <- changing_cell_annotations("0.2",ground_truth_cell_annotations)
+cell_count_bone_marrow_20k_0.2 <- as.data.frame(table(bone_marrow_20k_0.2$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+bone_marrow_20k_0.4 <- changing_cell_annotations("0.4",ground_truth_cell_annotations)
+cell_count_bone_marrow_20k_0.4 <- as.data.frame(table(bone_marrow_20k_0.4$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+bone_marrow_20k_0.6 <- changing_cell_annotations("0.6",ground_truth_cell_annotations)
+cell_count_bone_marrow_20k_0.6 <- as.data.frame(table(bone_marrow_20k_0.6$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+bone_marrow_20k_0.8 <- changing_cell_annotations("0.8",ground_truth_cell_annotations)
+cell_count_bone_marrow_20k_0.8 <- as.data.frame(table(bone_marrow_20k_0.8$cell)) %>% 
+                     dplyr::rename("cell_type"="Var1")
+
+```
+
+
+```{r}
+# The dataset with random cells , date=10022025
+dataset_included= c("pbmc20k_0.00002","pbmc20k_0.0002","pbmc20k_0.001","pbmc20k_0.01","pbmc20k_0.2","pbmc20k_0.4","pbmc20k_0.6","pbmc20k_0.8","pbmc20k_1")
+cell_types= c("B cells","Monocytes","NK cells","T cells") 
+bootstrap_value= 30
+date="21052025"
+data_type="pbmc20k_sequencing_depth_cell_ranger"
+```
+
+
+```{r}
+dataset_included= c("bone_marrow_20k_0.00002","bone_marrow_20k_0.0002","bone_marrow_20k_0.001","bone_marrow_20k_0.01","bone_marrow_20k_0.2","bone_marrow_20k_0.4","bone_marrow_20k_0.6","bone_marrow_20k_0.8","bone_marrow_20k_1")
+cell_types= c("B cells","Monocytes","NK cells","T cells") 
+bootstrap_value= 30
+date="04062025"
+data_type="bone_marrow_20k_sequencing_depth_cell_ranger"
+```
+
+# Generating Bootstrapped samples Copied from generating bootstrapped samples)
+# In future modify the generating_bootstrapped_samples and put it in the function file. 
+
+```{r}
+generating_bootstraped_datasets_10x <- function(dataset_included,
+                                            data_type,
+                                            cell_types,
+                                            bootstrap_value,
+                                            date)
+{  for (bootstrap in 1:bootstrap_value) 
+    {
+        for (dataset in dataset_included) 
+          {
+            var_name= paste0("cell_count_", dataset)
+            cell_count_table <- get(var_name)
+            sce_rds <- get(dataset)
+            cell_table <-data.frame("cell_type"= cell_types) %>% 
+                        left_join(cell_count_table, by = c("cell_type" = "cell_type")) %>% rowwise() %>% 
+                        mutate(inDeconv = as.integer(runif(1,min=10,max = Freq))) %>%  as.data.frame()
+            cell_table <- cell_table %>% mutate(inDeconv_Frac = inDeconv/sum(inDeconv))
+            for_the_loop<- generating_a_pseudobulk_sample(sce_rds, 
+                                                           dataset,                              
+                                                           cell_table %>% pull(cell_type), 
+                                                           cell_table %>% pull(inDeconv), 
+                                                           perform_TPM_normalisation=FALSE)
+            
+           # Adding bootstrap value to the pseudobulks generated in each run
+            for_the_loop= for_the_loop %>%
+                dplyr::rename_with(~ paste0(.x,"_boot",bootstrap,".Raw"), -HUGO)
+ 
+        
+          if(dataset==dataset_included[1] && bootstrap==1)
+            {
+              deconv_table= for_the_loop
+              actual_cell_proportions= cell_table %>% 
+                             dplyr::select(cell_type,inDeconv,inDeconv_Frac) %>% 
+                             dplyr::rename(!!paste0(dataset,"_boot",bootstrap,".actual_values") := "inDeconv",
+                                           !!paste0(dataset,"_boot",bootstrap,".actual_frac") := "inDeconv_Frac")
+                                 
+            } else
+            {
+              deconv_table=merge(deconv_table, for_the_loop, by.x="HUGO",by.y="HUGO", all=TRUE)
+              actual_cell_proportions= left_join(actual_cell_proportions, 
+                                                 cell_table %>% 
+                                                 dplyr::select(cell_type,inDeconv,inDeconv_Frac) %>% 
+                                                 dplyr::rename(!!paste0(dataset,"_boot",bootstrap,".actual_values") := "inDeconv",
+                                                               !!paste0(dataset,"_boot",bootstrap,".actual_frac") := "inDeconv_Frac"),
+                                                 by=c("cell_type"="cell_type"))
+           }
+        }
+        print(paste("Bootstrap",bootstrap,"of",bootstrap_value,"completed"))
+      }
+  saveRDS(deconv_table,file = paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_pseudobulks_",date,".RData"))
+  saveRDS(actual_cell_proportions,file = paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_cell_proportions_",date,".RData"))  
+}
+```
+
+```{r}
+# To be run with 4 cell types
+generating_bootstraped_datasets_10x(dataset_included,
+                                            data_type,
+                                            cell_types,
+                                            bootstrap_value,
+                                            date)
+```
+
+```{r}
+#For Epic (for 3 cell types)
+dataset_included= c("pbmc20k_0.00002","pbmc20k_0.0002","pbmc20k_0.001","pbmc20k_0.01","pbmc20k_0.2","pbmc20k_0.4","pbmc20k_0.6","pbmc20k_0.8","pbmc20k_1")
+cell_types= c("B cells","NK cells","T cells") 
+bootstrap_value= 30
+date="13102025"
+data_type="pbmc20k_sequencing_depth_cell_ranger_for_epic"
+generating_bootstraped_datasets_10x(dataset_included,
+                                            data_type,
+                                            cell_types,
+                                            bootstrap_value,
+                                            date)
+
+
+dataset_included= c("bone_marrow_20k_0.00002","bone_marrow_20k_0.0002","bone_marrow_20k_0.001","bone_marrow_20k_0.01","bone_marrow_20k_0.2","bone_marrow_20k_0.4","bone_marrow_20k_0.6","bone_marrow_20k_0.8","bone_marrow_20k_1")
+cell_types= c("B cells","NK cells","T cells") 
+bootstrap_value= 30
+date="13102025"
+data_type="bone_marrow_20k_sequencing_depth_cell_ranger_for_epic"
+
+generating_bootstraped_datasets_10x(dataset_included,
+                                            data_type,
+                                            cell_types,
+                                            bootstrap_value,
+                                            date)
+```
+
+# Analysis
+PBMC
+```{r}
+date="13102025"
+data_type="pbmc20k_sequencing_depth_cell_ranger"
+
+# Pseudobulks generated from Chromium 10X
+bootstraped_data=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_pseudobulks_21052025.RData"))
+bootstraped_data_cell_counts=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_cell_proportions_21052025.RData")) %>%
+                             dplyr::rename_with(~str_replace(., "_boot$", ""), ends_with("_boot"))
+
+
+bootstraped_data_epic=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_for_epic_pseudobulks_13102025.RData"))
+bootstraped_data_cell_counts_epic=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_for_epic_cell_proportions_13102025.RData")) %>%
+                             dplyr::rename_with(~str_replace(., "_boot$", ""), ends_with("_boot"))
+
+# Signature Matrix
+signature_reference <- readRDS("../intermediate_data/processed_sces/sequencing_depth/PBMC20k_1_cell_ranger.rds")
+signature_reference$Barcode=colnames(signature_reference)
+
+analysis_type="PBMC"
+```
+
+Bone Marrow
+```{r}
+data_type="bone_marrow_20k_sequencing_depth_cell_ranger"
+
+# Pseudobulks generated from Chromium 10X
+bootstraped_data=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_pseudobulks_04062025.RData"))
+bootstraped_data_cell_counts=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_cell_proportions_04062025.RData")) %>%
+                             dplyr::rename_with(~str_replace(., "_boot$", ""), ends_with("_boot"))
+bootstraped_data_epic=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_for_epic_pseudobulks_13102025.RData"))
+bootstraped_data_cell_counts_epic=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/",data_type,"_for_epic_cell_proportions_13102025.RData")) %>%
+                             dplyr::rename_with(~str_replace(., "_boot$", ""), ends_with("_boot"))
+
+# Signature Matrix
+signature_reference <- readRDS("../intermediate_data/processed_sces/sequencing_depth/bone_marrow_20k_1_cell_ranger.rds")
+signature_reference$Barcode=colnames(signature_reference)
+
+analysis_type="bone_marrow"
+```
+
+
+```{r}
+date= "13102025"
+column_character_specifications_for_mcp=c("0.00002","0.0002","0.001","0.01","0.2","0.4","0.6","0.8","_1_")
+deconv_table=bootstraped_data %>%
+                 mutate(across(-1, ~ (.x / sum(.x, na.rm = TRUE)) * 1e6))
+
+deconv_table_epic=bootstraped_data_epic %>%
+                 mutate(across(-1, ~ (.x / sum(.x, na.rm = TRUE)) * 1e6))
+
+actual_cell_proportions= bootstraped_data_cell_counts
+actual_cell_proportions_epic= bootstraped_data_cell_counts_epic
+    
+# Deconvolution
+result_df <- deconvolution_for_bootstrap_v4(deconv_table, 
+                                            deconv_tabe_epic,
+                                            signature_reference,
+                                            actual_cell_proportions,
+                                            actual_cell_proportions_epic,
+                                            column_character_specifications_for_mcp)
+
+# Wrangling_data
+comp_sequencing_depth_res= result_df %>%
+      pivot_longer(cols = -c(deconv_type, cell_type),
+                  names_to = c("Dataset", ".value"),
+                  names_pattern = "^(.*_boot\\d+)\\.(Raw|actual_values|actual_frac)$") %>% 
+                  # for real data
+                  # names_sep = "\\.") %>% 
+     dplyr::rename("Deconvolution_fraction"="Raw") %>% 
+     dplyr::filter(!deconv_type %in% c("SpatialDecon (Custom)\n cells known","SpatialDecon (TME)\n cells known","SpatialDecon (Custom)\n cells unknown")) %>% 
+                    mutate(deconv_type = ifelse(deconv_type=="SpatialDecon (TME)\n cells unknown","SpatialDecon",deconv_type)) %>% 
+                    mutate(deconv_type=factor(deconv_type, levels=c("quanTIseq",
+                                                                  "EPIC",
+                                                                  "MCPcounter*",
+                                                                  "SPOTlight",
+                                                                  "SpatialDecon"))) %>% 
+    mutate(Sequencing_depth= case_when(str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.00002"~"0.002% reads",
+                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.0002"~"0.02% reads",
+                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.001"~"0.1% reads",
+                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.01"~"1% reads",
+                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.2"~"20% reads",
+                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.4"~"40% reads",
+                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.6"~"60% reads",
+                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.8"~"80% reads",
+                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="1"~"100% reads")) %>%
+    mutate(Sequencing_depth=factor(Sequencing_depth, levels=c("0.002% reads","0.02% reads","0.1% reads","1% reads","20% reads","40% reads","60% reads","80% reads","100% reads")))
+
+
+save(comp_sequencing_depth_res, file = paste0("../Results/Sequencing_depth/cell_ranger/",analysis_type,"_sequencing_depth_",date,".RData"))
+```
+
+```{r}
+load("../Results/Sequencing_depth/cell_ranger/PBMC_sequencing_depth_pbmc20k_21052025.RData") 
+```
+
+# Checking the depth of the pseudo-bulk sample
+```{r}
+sequencing_depth_of_pseudo_bulks <- tibble(
+  "Sequencing_depth_prop" = rev(c("0.00002", "0.0002", "0.01", "0.2", "0.6", "_1_")),
+  "Sequencing depth \n of pseudo-bulk samples" = rev(c("0.002% reads", "0.02% reads", "1% reads", "20% reads", "60% reads", "100% reads"))
+)
+
+bootstraped_data_pbmc=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/pbmc20k_sequencing_depth_cell_ranger_pseudobulks_21052025.RData"))
+bootstraped_data_pbmc_cell=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/pbmc20k_sequencing_depth_cell_ranger_cell_proportions_21052025.RData"))
+
+
+bootstraped_data_pbmc_for_epic=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/pbmc20k_sequencing_depth_cell_ranger_for_epic_pseudobulks_13102025.RData"))
+bootstraped_data_pbmc_cell_for_epic=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/pbmc20k_sequencing_depth_cell_ranger_for_epic_cell_proportions_13102025.RData"))
+
+
+bootstraped_data_bone_marrow=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/bone_marrow_20k_sequencing_depth_cell_ranger_pseudobulks_04062025.RData"))
+bootstraped_data_bone_marrow_cells=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/bone_marrow_20k_sequencing_depth_cell_ranger_cell_proportions_04062025.RData"))
+
+bootstraped_data_bone_marrow_for_epic=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/bone_marrow_20k_sequencing_depth_cell_ranger_for_epic_pseudobulks_13102025.RData"))
+bootstraped_data_bone_marrow_cells_for_epic=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/bone_marrow_20k_sequencing_depth_cell_ranger_for_epic_cell_proportions_13102025.RData"))
+
+#i="0.00002"
+
+
+for (i in sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop) 
+{
+  # PBMC 4 cells
+  sequencing_depth_of_pseudo_bulks[sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop == i, "PBMC20k \nmean counts"] <-
+    bootstraped_data_pbmc %>%
+      select(contains(i)) %>%
+      colSums() %>%
+      mean()
+  
+  sequencing_depth_of_pseudo_bulks[sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop == i, "PBMC20k \nmean nb. of cells"] <-
+    bootstraped_data_pbmc_cell %>%
+      select(contains(i)) %>%
+      select(contains("actual_values")) %>%
+      colSums() %>%
+      mean()
+  
+  sequencing_depth_of_pseudo_bulks[sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop == i, "PBMC20k \nmean nb. of genes"] <-
+    bootstraped_data_pbmc %>%
+      select(contains(i)) %>%
+      summarise(across(everything(), ~ sum(. != 0))) %>%  # count non-zero per column
+      unlist() %>%                                       # convert to numeric vector
+      mean() 
+  
+  # PBMC 3 cells
+  sequencing_depth_of_pseudo_bulks[sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop == i, "PBMC20k \nmean counts \n3 cells in pseudobulks"] <-
+    bootstraped_data_pbmc_for_epic %>%
+      select(contains(i)) %>%
+      colSums() %>%
+      mean()
+  
+  sequencing_depth_of_pseudo_bulks[sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop == i, "PBMC20k \nmean nb. of cells \n3 cells in pseudobulks"] <-
+    bootstraped_data_pbmc_cell_for_epic %>%
+      select(contains(i)) %>%
+      select(contains("actual_values")) %>%
+      colSums() %>%
+      mean()
+  
+  sequencing_depth_of_pseudo_bulks[sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop == i, "PBMC20k \nmean nb. of genes \n3 cells in pseudobulks"] <-
+    bootstraped_data_pbmc_for_epic %>%
+      select(contains(i)) %>%
+      summarise(across(everything(), ~ sum(. != 0))) %>%  # count non-zero per column
+      unlist() %>%                                       # convert to numeric vector
+      mean() 
+  
+  # Bone Marrow 4 cells
+  sequencing_depth_of_pseudo_bulks[sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop == i, "20k Bone Marrow \nmean counts"] <-
+    bootstraped_data_bone_marrow %>%
+      select(contains(i)) %>%
+      colSums() %>%
+      mean()
+  
+  sequencing_depth_of_pseudo_bulks[sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop == i, "20k Bone Marrow \nmean nb. of cells"] <-
+    bootstraped_data_bone_marrow_cells %>%
+      select(contains(i)) %>%
+      select(contains("actual_values")) %>%
+      colSums() %>%
+      mean()
+  
+  sequencing_depth_of_pseudo_bulks[sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop == i, "20k Bone Marrow \nmean nb. of genes"] <-
+    bootstraped_data_bone_marrow %>%
+      select(contains(i)) %>%
+      summarise(across(everything(), ~ sum(. != 0))) %>%  # count non-zero per column
+      unlist() %>%                                       # convert to numeric vector
+      mean() 
+  
+  # Bone Marrow 3 cells
+  sequencing_depth_of_pseudo_bulks[sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop == i, "20k Bone Marrow \nmean counts \n 3cells in pseudobulks"] <-
+    bootstraped_data_bone_marrow_for_epic %>%
+      select(contains(i)) %>%
+      colSums() %>%
+      mean()
+  
+  sequencing_depth_of_pseudo_bulks[sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop == i, "20k Bone Marrow \nmean nb. of cells \n 3cells in pseudobulks"] <-
+    bootstraped_data_bone_marrow_cells_for_epic %>%
+      select(contains(i)) %>%
+      select(contains("actual_values")) %>%
+      colSums() %>%
+      mean()
+  
+  sequencing_depth_of_pseudo_bulks[sequencing_depth_of_pseudo_bulks$Sequencing_depth_prop == i, "20k Bone Marrow \nmean nb. of genes \n 3cells in pseudobulks"] <-
+    bootstraped_data_bone_marrow_for_epic %>%
+      select(contains(i)) %>%
+      summarise(across(everything(), ~ sum(. != 0))) %>%  # count non-zero per column
+      unlist() %>%                                       # convert to numeric vector
+      mean() 
+}
+
+sequencing_depth_of_pseudo_bulks=sequencing_depth_of_pseudo_bulks %>% 
+  select(-Sequencing_depth_prop)
+
+saveRDS(sequencing_depth_of_pseudo_bulks,"../manuscript/figure_assembly_scripts/fig_sequencing_depth/sequencing_depth_summary_numbers.RData")
+
+library(ggplot2)
+library(gridExtra)
+
+png("../manuscript/figure_assembly_scripts/fig_sequencing_depth/sequencing_depth_summary_numbers.png", height=180, width=800,pointsize = 16)
+p<-tableGrob(sequencing_depth_of_pseudo_bulks)
+grid.arrange(p)
+dev.off()
+```

@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r, message=FALSE,warning=FALSE}
-source("./0_functions.R")
+source("./functions.R")
 ```
 
 # Bootstraped data for PBMC
@@ -32,11 +32,11 @@ cell_types=c("B cell","T cell","Monocyte","NK cell")
 analysis_type="PBMC"
 
 
-# bootstraped_data_cell_counts_epic%>%
+# bootstraped_data_cell_counts%>%
 #       select(contains("boot")) %>%
 #       select(contains("actual_values")) %>%
 #       colSums() %>%
-#       min()
+#       max()
 ```
 
 # Bootstraped data for AML
@@ -60,10 +60,13 @@ cell_types=c("B cell","T cell","Monocyte","NK cell")
 #       select(contains("actual_values")) %>%
 #       colSums() %>%
 #       mean()
-#
+# 
 # colnames(bootstraped_data)
 ```
 
+```{r}
+length(unique(bootstraped_data$HUGO))
+```
 
 PART 1: Gene Panel
 ## Gene Panel Variables
@@ -77,8 +80,8 @@ BD_genes <- read.delim("../Data/gene_panels/cDNA_BD_Kit.txt", header = FALSE)
 tenX_genes <-read.delim("../Data/gene_panels/Visium_gene_list.txt", header = FALSE)
 nanostring_genes <- read_xlsx("../Data/gene_panels/GeoMx-Human-Whole-Transcriptome-Atlas-Probe-List_v0.1.xlsx",skip = 1,
                               sheet="Probe Details") %>% dplyr::rename("V1"="Formal Gene Name")
-# xenium_genes <- read_csv("../Data/gene_panels/Xenium_hIO_v1_metadata.csv") %>% 
-#                 dplyr::rename("V1"="Gene")
+xenium_genes <- read_csv("../Data/gene_panels/Xenium_hIO_v1_metadata.csv") %>% 
+                dplyr::rename("V1"="Gene")
 
 targeted_human_immunology_panel=read_csv("../Data/gene_panels/Targeted_immunology_v1.0_GRCh38-2020-A.target_panel.csv", skip = 5) %>% 
                                 dplyr::select(bait_id) %>%
@@ -94,19 +97,14 @@ targeted_pan_cancer_panel=read_csv("../Data/gene_panels/Targeted_Visium_Human_Ov
 
 
 # Input variables for benchmarking for gene panels
-gene_panels= list("All detected \ngenes"=all_genes,"10x Visium \nWTA Probe-set"=tenX_genes,"Nanostring WTA"= nanostring_genes,"BD Rhapsody"= BD_genes,"Targeted \nImmunology"=targeted_human_immunology_panel,"Targeted \nPan-Cancer"=targeted_pan_cancer_panel)
+gene_panels= list("All detected \ngenes"=all_genes,"10x Visium \nWTA Probe-set"=tenX_genes,"Nanostring WTA"= nanostring_genes,"BD Rhapsody"= BD_genes,"Targeted \nImmunology"=targeted_human_immunology_panel,"Targeted \nPan-Cancer"=targeted_pan_cancer_panel,"Xenium \nImmuno-Oncology Panel"=xenium_genes)
 cell_types=c("B cell","T cell","Monocyte","NK cell")
-date="24032026"
+date="13102025"  
 column_character_specifications_for_mcp=NA
 ```
 
 
 ```{r}
-
-# # Reviewer reguest to test methods with pseudobulks without monocytes
-# bootstraped_data=bootstraped_data_epic
-# bootstraped_data_cell_counts=bootstraped_data_cell_counts_epic
-
 complete_gene_panel_benchmarking_list =list(names(gene_panels)) 
 for (j in names(gene_panels)) 
   { 
@@ -117,9 +115,6 @@ for (j in names(gene_panels))
     deconv_table=bootstraped_data %>%
                  dplyr::filter(HUGO %in% gene_list$V1 ) %>%
                  mutate(across(-1, ~ (.x / sum(.x, na.rm = TRUE)) * 1e6))
-    
-    deconv_table_no_norm=bootstraped_data %>%
-                 dplyr::filter(HUGO %in% gene_list$V1 ) 
     
     deconv_table_epic=bootstraped_data_epic %>%
                  dplyr::filter(HUGO %in% gene_list$V1 ) %>%
@@ -152,96 +147,28 @@ for (j in names(gene_panels))
 
 # Data Wrangling
 ```{r}
-cell2loc_gene_panel_res <- read_csv(paste0("../intermediate_data/cell2location_res/",tolower(analysis_type),"_gene_panel_24032026_benchmarking_results.csv"))
-#cell2loc_gene_panel_res <- read_csv("../intermediate_data/cell2location_res/pbmc_gene_panel_24032026_benchmarking_results_with_epic_pseudobulks.csv")
-
 gene_panel_res <- rbind(complete_gene_panel_benchmarking_list$`All detected \ngenes`,
           complete_gene_panel_benchmarking_list$`10x Visium \nWTA Probe-set`,
           complete_gene_panel_benchmarking_list$`Nanostring WTA`,
           complete_gene_panel_benchmarking_list$`Targeted \nPan-Cancer`,
           complete_gene_panel_benchmarking_list$`Targeted \nImmunology`,
           complete_gene_panel_benchmarking_list$`BD Rhapsody`,
-          complete_gene_panel_benchmarking_list$`Xenium \nImmuno-Oncology Panel`,
-          cell2loc_gene_panel_res) %>% 
+          complete_gene_panel_benchmarking_list$`Xenium \nImmuno-Oncology Panel`) %>% 
           mutate(deconv_type = ifelse(deconv_type=="SpatialDecon (TME)\n cells unknown","SpatialDecon",deconv_type)) %>% 
           mutate(deconv_type=factor(deconv_type, levels=c("quanTIseq",
                                                           "EPIC",
                                                           "MCPcounter*",
                                                           "SPOTlight",
-                                                          "SpatialDecon",
-                                                           "RCTD",
-                                                           "cell2location"))) %>% 
+                                                          "SpatialDecon"))) %>% 
          mutate(Gene_panel=factor(Gene_panel, levels=c("All detected \ngenes","10x Visium \nWTA Probe-set","Nanostring WTA","Targeted \nPan-Cancer", "Targeted \nImmunology","BD Rhapsody","Xenium \nImmuno-Oncology Panel")))
 
-#gene_panel_res=gene_panel_res %>% mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell", cell_type))
-
-saveRDS(gene_panel_res, file = paste0("../Results/Gene_panel/",analysis_type,"_gene_panel_",date,".RDS")) 
-#saveRDS(gene_panel_res, file = paste0("../Results/Gene_panel/",analysis_type,"_gene_panel_epic_in_cellFraction_mode",date,".RDS")) 
-#saveRDS(gene_panel_res, file = paste0("../Results/Gene_panel/",analysis_type,"_gene_panel_with_epic_pseudobulks_",date,".RDS"))
-```
-
-# Testing Epic Results (mRNAProportions vs CellFractions)
-```{r}
-complete_gene_panel_benchmarking_list =list(names(gene_panels)) 
-for (j in names(gene_panels)) 
-  { 
-    gene_list= gene_panels[[j]]
-    gene_panel_benchmarking <-data.frame()
-    
-    # Filtering genes based on gene panels and normalizing according to TPM
-    deconv_table=bootstraped_data %>%
-                 dplyr::filter(HUGO %in% gene_list$V1 ) %>%
-                 mutate(across(-1, ~ (.x / sum(.x, na.rm = TRUE)) * 1e6))
-    
-    deconv_table_no_norm=bootstraped_data %>%
-                 dplyr::filter(HUGO %in% gene_list$V1 ) 
-    
-    deconv_table_epic=bootstraped_data_epic %>%
-                 dplyr::filter(HUGO %in% gene_list$V1 ) %>%
-                 mutate(across(-1, ~ (.x / sum(.x, na.rm = TRUE)) * 1e6))
-    
-    actual_cell_proportions= bootstraped_data_cell_counts
-    actual_cell_proportions_epic= bootstraped_data_cell_counts_epic
-    
-    # Deconvolution
-    result_df <- epic_deconvolution_comparison(deconv_table,
-                                                deconv_table_epic,
-                                                signature_reference, 
-                                                actual_cell_proportions,
-                                                actual_cell_proportions_epic)
-    
-    # Wrangling_data
-    comp_gene_panel_res= result_df %>%
-          pivot_longer(cols = -c(deconv_type, cell_type),
-                      names_to = c("Dataset", ".value"),
-                      names_pattern = "^(.*_boot\\d+)\\.(Raw|actual_values|actual_frac)$") %>% 
-         dplyr::rename("Deconvolution_fraction"="Raw") %>% 
-         dplyr::mutate("Gene_panel"=j)
-    
-    # Adding to list
-    complete_gene_panel_benchmarking_list[[j]] = comp_gene_panel_res
-}
-
-
-epic_comparisons_res=rbind(complete_gene_panel_benchmarking_list$`All detected \ngenes`,
-          complete_gene_panel_benchmarking_list$`10x Visium \nWTA Probe-set`,
-          complete_gene_panel_benchmarking_list$`Nanostring WTA`,
-          complete_gene_panel_benchmarking_list$`Targeted \nPan-Cancer`,
-          complete_gene_panel_benchmarking_list$`Targeted \nImmunology`,
-          complete_gene_panel_benchmarking_list$`BD Rhapsody`,
-          complete_gene_panel_benchmarking_list$`Xenium \nImmuno-Oncology Panel`) %>% 
-          mutate(deconv_type=factor(deconv_type)) %>% 
-         mutate(Gene_panel=factor(Gene_panel, levels=c("All detected \ngenes","10x Visium \nWTA Probe-set","Nanostring WTA","Targeted \nPan-Cancer", "Targeted \nImmunology","BD Rhapsody","Xenium \nImmuno-Oncology Panel")))
-
-#gene_panel_res=gene_panel_res %>% mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell", cell_type))
-
-saveRDS(epic_comparisons_res, file = paste0("../Results/Gene_panel/",analysis_type,"epic_comparisons_gene_panel_",date,".RDS")) 
+saveRDS(gene_panel_res, file = paste0("../Results/Gene_panel/",analysis_type,"_gene_panel_",date,".RDS"))    
 ```
 
 PART 2: Normalisation
 # Normalisation
 ```{r}
-date="08042026"
+date="13102025"
 normalization_types=c("Raw","TPM normalized","Quantile normalized","Q3 normalized")
 complete_normalization_benchmarking_list =list(normalization_types)
 column_character_specifications_for_mcp=NA
@@ -344,20 +271,16 @@ for (j in normalization_types)
 ```
 
 ```{r}
-cell2loc_normalisation_res <- read_csv(paste0("../intermediate_data/cell2location_res/",tolower(analysis_type),"_normalisation_06042026_benchmarking_results.csv")) %>% select(-Gene_panel)
 normalisation_res <- rbind(complete_normalization_benchmarking_list$Raw,
                            complete_normalization_benchmarking_list$`TPM normalized`,
                            complete_normalization_benchmarking_list$`Quantile normalized`,
-                           complete_normalization_benchmarking_list$`Q3 normalized`,
-                           cell2loc_normalisation_res) %>% 
+                           complete_normalization_benchmarking_list$`Q3 normalized`) %>% 
                     mutate(deconv_type = ifelse(deconv_type=="SpatialDecon (TME)\n cells unknown","SpatialDecon",deconv_type)) %>% 
                     mutate(deconv_type=factor(deconv_type, levels=c("quanTIseq",
-                                                          "EPIC",
-                                                          "MCPcounter*",
-                                                          "SPOTlight",
-                                                          "SpatialDecon",
-                                                           "RCTD",
-                                                           "cell2location"))) %>% 
+                                                                  "EPIC",
+                                                                  "MCPcounter*",
+                                                                  "SPOTlight",
+                                                                  "SpatialDecon"))) %>% 
                     mutate(Normalisation=factor(Normalisation))
 
 save(normalisation_res, file = paste0("../Results/Normalisation/",analysis_type,"_normalisation_",date,".RData"))     
@@ -389,7 +312,6 @@ signature_matrices=list("LM22"=lm22,
                         "safeTME"=safetme)
 ```
 
-# Using SpatialDecon
 ```{r}
 complete_signature_matrix_benchmarking_list =list(names(signature_matrices)) 
 
@@ -415,54 +337,6 @@ complete_signature_matrix_benchmarking_list =list(names(signature_matrices))
 save(comp_signature_matrix_res, file = paste0("../Results/Signature_Matrix/",analysis_type,"_signature_matrix.RData"))   
 ```
 
-# Spatialdecon signature matrix  with sequencing-depth
-```{r}
-date="09042026"
-data_type="pbmc20k_sequencing_depth_cell_ranger"
-
-# Pseudobulks generated from Chromium 10X
-bootstraped_data=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/sequencing_depth_intermediate/",data_type,"_pseudobulks_09042026.RData"))
-bootstraped_data_cell_counts=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/sequencing_depth_intermediate/",data_type,"_cell_proportions_09042026.RData"))
-
-signature_reference <- readRDS("../intermediate_data/processed_sces/pbmc8k.rds")
-cell_types=c("B cell","T cell","Monocyte","NK cell")
-analysis_type="PBMC"
-
-complete_signature_matrix_benchmarking_list =list(names(signature_matrices)) 
-
-    
-   signature_matrix_benchmarking_benchmarking <-data.frame()
-    
-    # Filtering genes based on gene panels and normalising according to TPM
-    deconv_table=bootstraped_data %>% 
-                 mutate(across(-1, ~ (.x / sum(.x, na.rm = TRUE)) * 1e6)) %>% 
-                 rename_with(~sub(".Raw$", ".norm", .), ends_with(".Raw"))
-    actual_cell_proportions= bootstraped_data_cell_counts
-    
-    # Deconvolution
-    result_df <- signature_matrix_bootstrapping(deconv_table,cell_types, signature_reference, actual_cell_proportions)
-    
-    # Wrangling_data
-    comp_signature_matrix_res= result_df %>%
-          pivot_longer(cols = -c(deconv_type, cell_type),
-                  names_to = c("Dataset", ".value"),
-                  names_pattern = "^(.*_boot\\d+)\\.(norm|actual_values|actual_frac)$") %>% 
-     dplyr::rename("Deconvolution_fraction"="norm") %>% 
-     mutate(Sequencing_depth= case_when(str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.00002"~"0.002% reads",
-                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.0002"~"0.02% reads",
-                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.001"~"0.1% reads",
-                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.01"~"1% reads",
-                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.2"~"20% reads",
-                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.4"~"40% reads",
-                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.6"~"60% reads",
-                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.8"~"80% reads",
-                                       str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="1"~"100% reads")) %>% 
-    mutate(Sequencing_depth=factor(Sequencing_depth, levels=c("0.002% reads","0.02% reads","0.1% reads","1% reads","20% reads","40% reads","60% reads","80% reads","100% reads")))
- 
-    
-save(comp_signature_matrix_res, file = paste0("../Results/Signature_Matrix/",analysis_type,"_signature_matrix_with_sequencing_depth.RData"))   
-```
-
 # Spot Size
 ```{r}
 # Pseudobulks generated from Chromium 10X
@@ -479,7 +353,7 @@ signature_reference <- readRDS("../intermediate_data/processed_sces/pbmc8k.rds")
 # signature_reference_ss <- readRDS("../intermediate_data/processed_sces/SS2_PBMC_2.rds")
 cell_types=c("B cell","T cell","Monocyte","NK cell")
 analysis_type="PBMC"
-date="09042026"
+date="13102025"
 column_character_specifications_for_mcp=c(".4",".125",".1000")
 ```
 
@@ -508,7 +382,6 @@ column_character_specifications_for_mcp=c(".4",".125",".1000")
                                                 actual_cell_proportions,
                                                 actual_cell_proportions_epic,
                                                 column_character_specifications_for_mcp)
-     cell2loc_spot_size_res <- read_csv(paste0("../intermediate_data/cell2location_res/",tolower(analysis_type),"_spot_size_06042026_benchmarking_results.csv")) %>% mutate(deconv_type="cell2location") %>% select(-Gene_panel,-Max_spot_size)
     
     # Wrangling_data
     spot_size_res= result_df %>%
@@ -518,24 +391,25 @@ column_character_specifications_for_mcp=c(".4",".125",".1000")
                       # for real data comment out the names_pattern line above and uncomment the line below
                       # names_sep = "\\.") %>% 
          dplyr::rename("Deconvolution_fraction"="Raw") %>% 
-         rbind(cell2loc_spot_size_res) %>% 
          dplyr::mutate("Max_spot_size"=sub(".*\\.(\\d+)_.*", "\\1", Dataset)) %>% 
-         mutate(deconv_type = ifelse(deconv_type=="SpatialDecon (TME)\n cells unknown","SpatialDecon",deconv_type)) %>% 
-                    mutate(deconv_type=factor(deconv_type, levels=c("quanTIseq",
-                                                          "EPIC",
-                                                          "MCPcounter*",
-                                                          "SPOTlight",
-                                                          "SpatialDecon",
-                                                           "RCTD",
-                                                           "cell2location"))) %>% 
+         dplyr::filter(!deconv_type %in% c("SpatialDecon (Custom)\n cells known","SpatialDecon (TME)\n cells known")) %>% 
+                  mutate(deconv_type = ifelse(deconv_type=="SpatialDecon (Custom)\n cells unknown","SpatialDecon \n custom signature",deconv_type),
+                         deconv_type = ifelse(deconv_type=="SpatialDecon (TME)\n cells unknown","SpatialDecon \n default signature",deconv_type)) %>% 
+                  mutate(deconv_type=factor(deconv_type, levels=c("quanTIseq",
+                                                                  "EPIC",
+                                                                  "MCPcounter*",
+                                                                  "SPOTlight",
+                                                                  "SpatialDecon \n default signature",
+                                                                  "SpatialDecon \n custom signature"))) %>% 
       mutate(Max_spot_size=paste("Max",as.integer(Max_spot_size)*4,"cells \n in Sample/Spot")) %>% 
-      mutate(Max_spot_size=case_when(Max_spot_size=="Max 16 cells \n in Sample/Spot"~"6-16 cells \n in Sample/Spot",
+      mutate(Max_spot_size=case_when(Max_spot_size=="Max 16 cells \n in Sample/Spot"~"6-12 cells \n in Sample/Spot",
                                      Max_spot_size=="Max 500 cells \n in Sample/Spot"~"75-496 cells \n in Sample/Spot",
                                      Max_spot_size=="Max 4000 cells \n in Sample/Spot"~"600-3996 cells \n in Sample/Spot")) %>% 
       mutate(Max_spot_size= factor(Max_spot_size,
-                                   levels=c("600-3996 cells \n in Sample/Spot","75-496 cells \n in Sample/Spot","6-16 cells \n in Sample/Spot")))
+                                   levels=c("600-3996 cells \n in Sample/Spot","75-496 cells \n in Sample/Spot","6-12 cells \n in Sample/Spot")))
 
 saveRDS(spot_size_res, file = paste0("../Results/Max_spot_size/",analysis_type,"_spot_size_",date,".RDS"))     
 
 ```
+
 

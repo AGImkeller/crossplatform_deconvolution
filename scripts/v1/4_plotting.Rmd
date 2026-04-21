@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-source("./0_functions.R")
+source("./functions.R")
 ```
 
 # Function for correlation plot 
@@ -38,7 +38,7 @@ correlation_plots <- function(df,parameter,analysis_type)
                                          "NK cell"  =  "#80B1D3" ,
                                          "T cell"  =  "#FDB462" ,
                                          "Myeloid dendritic cell"  =  "#B3DE69" ,
-                                         "Uncharacterized cell"  =  "#FCCDE5",
+                                         "uncharacterized cell"  =  "#FCCDE5",
                                          "cytotoxicity score"  =  "#C9B4A7" ,
                                          "Macrophage/Monocyte"  =  "#D9D9D9",
                                          "Endothelial cell"  =  "#BC80BD" ,
@@ -78,9 +78,6 @@ correlation_plots <- function(df,parameter,analysis_type)
         save(corplot,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_corplot.RData"))
         ggsave(plot = corplot,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_corplot.png"),width = 16, height =12, units = "in", dpi = 300)
         
-        # save(corplot,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_corplot_with_epic_pseudobulks.RData"))
-        # ggsave(plot = corplot,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_corplot_with_epic_pseudobulks.png"),width = 16, height =12, units = "in", dpi = 300)
-        
 }
 ```
 
@@ -96,20 +93,22 @@ correlation_plots_signature <- function(df,parameter,analysis_type)
          geom_point(aes(color=cell_type), size=2) +
          stat_cor(method = "pearson",size=4, aes(label = ..r.label..))+
          scale_color_manual (values = c ( "B cell"  =  "#8DD3C7" ,
-                                          "Dendritic cell" = "#B3DE69",
-                                          "Monocyte"  =  "#BEBADA",
-                                          "NK cell"  =  "#80B1D3" ,
-                                          "Progenitor cell" = "#573F94",
-                                          "T cell"  =  "#FDB462" ,
-                                          "Basophil"="#D9D9D9",
-                                          "Eosinophil"="#FCCDE5",
-                                          "Macrophage"  =  "#FFFFB3",
-                                          "Mast cell"="#E6B9A1",
-                                          "Neutrophil"  =  "#FB8072",
-                                          "Fibroblast cell"="#CCEBC5",
-                                          "Endothelial cell"  =  "#BC80BD" ,
-                                          "Plasmacytoid Dendritic cell"="darkgrey",
-                                          "Plasma cell"="#E6E6CA"), name="Cell Type") +
+                                         "Macrophage"  =  "#FFFFB3",
+                                         "Monocyte"  =  "#BEBADA",
+                                         "Neutrophil"  =  "#FB8072",
+                                         "NK cell"  =  "#80B1D3" ,
+                                         "T cell"  =  "#FDB462" ,
+                                         "Myeloid dendritic cell"  =  "#B3DE69" ,
+                                         "uncharacterized cell"  =  "#FCCDE5",
+                                         "cytotoxicity score"  =  "#C9B4A7" ,
+                                         "Macrophage/Monocyte"  =  "#D9D9D9",
+                                         "Endothelial cell"  =  "#BC80BD" ,
+                                         "Cancer associated fibroblast"  =  "#CCEBC5" ,
+                                         "Progenitor" = "#573F94",
+                                         "Dendritic cell" = "#B3DE69",
+                                         "Mast cell"="#E6B9A1",
+                                         "Plasma cell"="#E6E6CA",
+                                         "Fibroblast cell"="#CCEBC5"), name="Cell Type") +
         geom_smooth(method = "lm", formula = y~x, col = "black") +
         # scale_shape_manual(values=c(0,1,2,3, 16, 17,11,4,8)) + theme(plot.title = element_text(hjust = 0.5)) +
         theme(axis.text.y   = element_text(size=14),
@@ -268,12 +267,10 @@ ggsave(plot=summary_figure,filename=paste0("../manuscript/figs/",analysis_type,"
 # Updating CLR and Aitchison distance
 ```{r}
 color_manual= c("quanTIseq" ="#ef476f",
-                "EPIC"="#50C878",
+                "EPIC"="#ffd166",
                 "MCPcounter*"="#06d6a0",
                 "SPOTlight"="#118ab2",
-                "SpatialDecon"="#073b4c",
-                "RCTD"="#f7931e",
-                "cell2location"="#9b5de5")
+                "SpatialDecon"="#073b4c")
 
 plotting_clr_and_mean_aitchison_plots=function(df,parameter,analysis_type, cell_types,shape_manual,color_manual)
 
@@ -368,16 +365,11 @@ df_geom_mean <-  df_norm%>%
 save(aitchison_distribution,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_aitchison_distribution_v2.RData"))
 ggsave(plot = aitchison_distribution,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_aitchison_distribution_v2.png"),width = 15, height =4, units = "in", dpi = 300)
 
-# save(aitchison_distribution,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_aitchison_distribution_v2_with_epic_pseudobulks.RData"))
-# ggsave(plot = aitchison_distribution,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_aitchison_distribution_v2_with_epic_pseudobulks.png"),width = 15, height =4, units = "in", dpi = 300)
-
-# color_manual= c("quanTIseq" ="#ef476f",
-#                 "EPIC"="#ffd166",
-#                 "MCPcounter*"="#06d6a0",
-#                 "SPOTlight"="#118ab2",
-#                 "SpatialDecon"="#073b4c",
-#                 "RCTD"="#f7931e",
-#                 "cell2location"="#9b5de5")
+color_manual= c("quanTIseq" ="#ef476f",
+                "EPIC"="#ffd166",
+                "MCPcounter*"="#06d6a0",
+                "SPOTlight"="#118ab2",
+                "SpatialDecon"="#073b4c")
 
   
 # Creating Summary Figure
@@ -412,10 +404,7 @@ summary_figure=summary_table %>%
   ylab("Pearson correlation")
   
 save(summary_figure,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_summary_v2.RData"))
-ggsave(plot=summary_figure,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_summary_v2.png"),width = 10.5, height =7, units = "in", dpi = 300)
-
-# save(summary_figure,file = paste0("../manuscript/figs/",analysis_type,"_",parameter,"_summary_v2_with_epic_pseudobulks.RData"))
-# ggsave(plot=summary_figure,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_summary_v2_with_epic_pseudobulks.png"),width = 10.5, height =7, units = "in", dpi = 300)
+ggsave(plot=summary_figure,filename=paste0("../manuscript/figs/",analysis_type,"_",parameter,"_summary_v2.png"),width = 10.5, height =7, units = "in", dpi = 300) 
 
 }
 ```
@@ -437,21 +426,17 @@ shape_manual= c("All detected \ngenes"=65,
 
 # PBMC
 analysis_type="PBMC"
-#gene_panel=readRDS("../Results/Gene_panel/PBMC_gene_panel_with_epic_pseudobulks_24032026.RDS") 
-gene_panel=readRDS("../Results/Gene_panel/PBMC_gene_panel_24032026.RDS") 
+gene_panel=readRDS("../Results/Gene_panel/PBMC_gene_panel_13102025.RDS") 
 gene_panel=gene_panel %>%
   mutate(Gene_panel = fct_recode(Gene_panel,"Immuno-Oncology \n Xenium Panel" = "Xenium \nImmuno-Oncology Panel")) %>% 
   mutate(deconv_type=as.character(deconv_type)) %>% 
-  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
   filter(deconv_type != "SpatialDecon \n custom signature") %>% 
   mutate(deconv_type = ifelse(deconv_type=="SpatialDecon \n default signature", "SpatialDecon", deconv_type)) %>% 
   mutate(deconv_type=factor(deconv_type,levels=c("quanTIseq",
                                                 "EPIC",
                                                  "MCPcounter*",
                                                  "SPOTlight",
-                                                 "SpatialDecon",
-                                                "RCTD",
-                                                "cell2location"))) %>% 
+                                                 "SpatialDecon"))) %>% 
   dplyr::filter(Gene_panel != "Immuno-Oncology \n Xenium Panel") %>%
   mutate(Gene_panel = droplevels(Gene_panel))
 
@@ -460,69 +445,22 @@ plotting_clr_and_mean_aitchison_plots(gene_panel,parameter,analysis_type, cell_t
 
 #AML
 analysis_type="AML"
-gene_panel_aml=readRDS("../Results/Gene_panel/AML_gene_panel_24032026.RDS") 
+gene_panel_aml=readRDS("../Results/Gene_panel/AML_gene_panel_13102025.RDS") 
 gene_panel_aml=gene_panel_aml %>%
   mutate(Gene_panel = fct_recode(Gene_panel,"Immuno-Oncology \n Xenium Panel" = "Xenium \nImmuno-Oncology Panel")) %>% 
   mutate(deconv_type=as.character(deconv_type)) %>% 
-  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
   filter(deconv_type != "SpatialDecon \n custom signature") %>% 
   mutate(deconv_type = ifelse(deconv_type=="SpatialDecon \n default signature", "SpatialDecon", deconv_type)) %>% 
   mutate(deconv_type=factor(deconv_type,levels=c("quanTIseq",
                                                 "EPIC",
                                                  "MCPcounter*",
                                                  "SPOTlight",
-                                                 "SpatialDecon",
-                                                "RCTD",
-                                                "cell2location"))) %>% 
+                                                 "SpatialDecon"))) %>% 
   dplyr::filter(Gene_panel != "Immuno-Oncology \n Xenium Panel") %>%
   mutate(Gene_panel = droplevels(Gene_panel))
 
 correlation_plots(gene_panel_aml,"Gene_panel",analysis_type)
 plotting_clr_and_mean_aitchison_plots(gene_panel_aml,parameter,analysis_type, cell_types,shape_manual,color_manual)
-
-
-# Different EPIC mode comparions
-analysis_type="PBMC_epic_comparions"
-gene_panel_epic=readRDS("../Results/Gene_panel/PBMCepic_comparisons_gene_panel_24032026.RDS") 
-gene_panel_epic=gene_panel_epic %>%
-  mutate(Gene_panel = fct_recode(Gene_panel,"Immuno-Oncology \n Xenium Panel" = "Xenium \nImmuno-Oncology Panel")) %>% 
-  mutate(deconv_type=as.character(deconv_type)) %>% 
-  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
-  dplyr::filter(Gene_panel %in%  c("10x Visium \nWTA Probe-set","Nanostring WTA")) %>%
-  mutate(Gene_panel = droplevels(Gene_panel),
-         deconv_type=factor(deconv_type))
-
-color_manual= c("With 3 cell types \ncellFractions" ="#ef476f",
-                "With 3 cell types \nmRNAProportions"="#ffd166",
-                "With 4 cell types \ncellFractions"="#06d6a0",
-                "With 4 cell types \nmRNAProportions"="#9b5de5")
-
-correlation_plots(gene_panel_epic,"Gene_panel",analysis_type)
-plotting_clr_and_mean_aitchison_plots(gene_panel_epic,parameter,analysis_type, cell_types,shape_manual,color_manual)
-
-
-# PBMC with all with epic pseudobulks
-analysis_type="PBMC_with_epic_pseudobulks_for_all"
-gene_panel=readRDS("../Results/Gene_panel/PBMC_gene_panel_with_epic_pseudobulks_24032026.RDS") 
-gene_panel=gene_panel %>%
-  mutate(Gene_panel = fct_recode(Gene_panel,"Immuno-Oncology \n Xenium Panel" = "Xenium \nImmuno-Oncology Panel")) %>% 
-  mutate(deconv_type=as.character(deconv_type)) %>% 
-  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
-  filter(deconv_type != "SpatialDecon \n custom signature") %>% 
-  mutate(deconv_type = ifelse(deconv_type=="SpatialDecon \n default signature", "SpatialDecon", deconv_type)) %>% 
-  mutate(deconv_type=factor(deconv_type,levels=c("quanTIseq",
-                                                "EPIC",
-                                                 "MCPcounter*",
-                                                 "SPOTlight",
-                                                 "SpatialDecon",
-                                                "RCTD",
-                                                "cell2location"))) %>% 
-  dplyr::filter(Gene_panel != "Immuno-Oncology \n Xenium Panel") %>%
-  mutate(Gene_panel = droplevels(Gene_panel))
-
-correlation_plots(gene_panel,"Gene_panel",analysis_type)
-plotting_clr_and_mean_aitchison_plots(gene_panel,parameter,analysis_type, cell_types,shape_manual,color_manual)
-
 ```
 
 # Normalisation
@@ -536,21 +474,18 @@ shape_manual= c("Raw"=82,
 parameter="Normalisation"
 cell_types=c("B cell","T cell","NK cell","Monocyte")
 analysis_type="PBMC"
-load(paste0("../Results/Normalisation/",analysis_type,"_normalisation_08042026.RData"))
+load(paste0("../Results/Normalisation/",analysis_type,"_normalisation_13102025.RData"))
 norm_PBMC=normalisation_res %>% 
           mutate(Normalisation= str_replace_all(Normalisation, "normalized", "normalised")) %>% 
           mutate(Normalisation= fct_relevel(Normalisation, "Raw", "TPM normalised", "Q3 normalised","Quantile normalised"))%>% 
           mutate(deconv_type=as.character(deconv_type)) %>% 
-          mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
           filter(deconv_type != "SpatialDecon \n custom signature") %>% 
           mutate(deconv_type = ifelse(deconv_type=="SpatialDecon \n default signature", "SpatialDecon", deconv_type)) %>% 
           mutate(deconv_type=factor(deconv_type,levels=c("quanTIseq",
                                                         "EPIC",
                                                          "MCPcounter*",
                                                          "SPOTlight",
-                                                         "SpatialDecon",
-                                                        "RCTD",
-                                                        "cell2location")))
+                                                         "SpatialDecon")))
 
 correlation_plots(norm_PBMC,parameter,analysis_type)
 plotting_clr_and_mean_aitchison_plots(norm_PBMC,parameter,analysis_type, cell_types,shape_manual,color_manual)
@@ -559,21 +494,18 @@ plotting_clr_and_mean_aitchison_plots(norm_PBMC,parameter,analysis_type, cell_ty
 parameter="Normalisation"
 cell_types=c("B cell","T cell","NK cell","Monocyte")
 analysis_type="AML"
-load(paste0("../Results/Normalisation/",analysis_type,"_normalisation_08042026.RData"))
+load(paste0("../Results/Normalisation/",analysis_type,"_normalisation_13102025.RData"))
 norm_AML=normalisation_res %>% 
          mutate(Normalisation= str_replace_all(Normalisation, "normalized", "normalised")) %>% 
           mutate(Normalisation= fct_relevel(Normalisation, "Raw", "TPM normalised", "Q3 normalised","Quantile normalised"))%>% 
           mutate(deconv_type=as.character(deconv_type)) %>% 
-          mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
           filter(deconv_type != "SpatialDecon \n custom signature") %>% 
           mutate(deconv_type = ifelse(deconv_type=="SpatialDecon \n default signature", "SpatialDecon", deconv_type)) %>% 
           mutate(deconv_type=factor(deconv_type,levels=c("quanTIseq",
                                                         "EPIC",
                                                          "MCPcounter*",
                                                          "SPOTlight",
-                                                         "SpatialDecon",
-                                                         "RCTD",
-                                                        "cell2location")))
+                                                         "SpatialDecon")))
 
 
 correlation_plots(norm_AML,parameter,analysis_type)
@@ -582,7 +514,6 @@ plotting_clr_and_mean_aitchison_plots(norm_AML,parameter,analysis_type, cell_typ
 
 # Signature Matrix
 ```{r}
-### SpatialDecon
 parameter="deconv_type"
 cell_types=c("B cell","T cell","NK cell","Monocyte")
 analysis_type="PBMC"
@@ -618,43 +549,28 @@ correlation_plots_signature(aml_df,parameter,analysis_type)
 #                  mutate(deconv_type=ifelse(deconv_type=="Custom","Custom \nSignature",deconv_type))
 # df=signature_matrix
 # correlation_plots_signature(df,parameter,analysis_type)
-
-## Cibersort
-### SpatialDecon
-parameter="deconv_type"
-cell_types=c("B cell","T cell","NK cell","Monocyte")
-analysis_type="PBMC_cibersort" 
-load(paste0("../Results/Signature_Matrix/",analysis_type,"_signature_matrix.RData"))
-pbmc_signature_matrix=comp_signature_matrix_res
-pbmc_df=pbmc_signature_matrix
-correlation_plots_signature(pbmc_df,parameter,analysis_type)
-
-
-#AML
-analysis_type="bone_marrow_cibersort"
-load(paste0("../Results/Signature_Matrix/",analysis_type,"_signature_matrix.RData"))
-aml_signature_matrix=comp_signature_matrix_res
-aml_df=aml_signature_matrix
-correlation_plots_signature(aml_df,parameter,analysis_type)
 ```
 
 
 # Sequencing depth
 ```{r}
-shape_manual= c("0.002% reads"=49,
-                "0.02% reads"=50,
-                "1% reads"=51,
-                "20% reads"=52,
-                "60% reads"=53,
-                "100% reads"= 54)
+shape_manual= c("0.002% reads"=18,
+                "0.02% reads"=8,
+                "0.1% reads"=42,
+                "1% reads"=111,
+                "20% reads"=116,
+                "40% reads"=102,
+                "60% reads"=115,
+                "80% reads"=101,
+                "100% reads"= 104)
 
 # cell Ranger PBMC
-load("../Results/Sequencing_depth/cell_ranger/PBMC_sequencing_depth_09042026.RData") 
+load("../Results/Sequencing_depth/cell_ranger/PBMC_sequencing_depth_13102025.RData") 
 parameter="Sequencing_depth"
 cell_types=c("B cell","T cell","NK cell","Monocyte")
 analysis_type="PBMC"
-df=sequencing_depth_res %>% 
-   #dplyr::filter(deconv_type !="SpotLight") %>% 
+df=comp_sequencing_depth_res %>% 
+   dplyr::filter(deconv_type !="SpotLight") %>% 
    dplyr::filter(Sequencing_depth %in% c("100% reads","60% reads","20% reads","1% reads", "0.02% reads","0.002% reads") ) %>% 
    mutate(Sequencing_depth=droplevels(Sequencing_depth))%>% 
    mutate(Sequencing_depth=factor(Sequencing_depth, levels = rev(levels(Sequencing_depth))))
@@ -666,12 +582,12 @@ plotting_clr_and_mean_aitchison_plots(df,parameter,analysis_type, cell_types,sha
 
 
 # cell Ranger Bone marrow 20k
-load("../Results/Sequencing_depth/cell_ranger/bone_marrow_sequencing_depth_09042026.RData") 
+load("../Results/Sequencing_depth/cell_ranger/bone_marrow_sequencing_depth_13102025.RData") 
 parameter="Sequencing_depth"
 cell_types=c("B cell","T cell","NK cell","Monocyte")
 analysis_type="bone_marrow"
-df=sequencing_depth_res %>% 
-   #dplyr::filter(deconv_type !="SpotLight") %>% 
+df=comp_sequencing_depth_res %>% 
+   dplyr::filter(deconv_type !="SpotLight") %>% 
    dplyr::filter(Sequencing_depth %in% c("100% reads","60% reads","20% reads","1% reads", "0.02% reads","0.002% reads") ) %>% 
    mutate(Sequencing_depth=droplevels(Sequencing_depth))%>% 
    mutate(Sequencing_depth=factor(Sequencing_depth, levels = rev(levels(Sequencing_depth))))
@@ -684,7 +600,7 @@ plotting_clr_and_mean_aitchison_plots(df,parameter,analysis_type, cell_types,sha
 
 # Spot Size
 ```{r}
-shape_manual=c("6-16 cells \n in Sample/Spot"=13,
+shape_manual=c("6-12 cells \n in Sample/Spot"=13,
                "75-496 cells \n in Sample/Spot"=12,
                "600-3996 cells \n in Sample/Spot"=6)
 
@@ -692,49 +608,16 @@ shape_manual=c("6-16 cells \n in Sample/Spot"=13,
 parameter="Max_spot_size"
 cell_types=c("B cell","T cell","NK cell","Monocyte")
 analysis_type="PBMC"
-spot_size= readRDS("../Results/Max_spot_size/PBMC_spot_size_09042026.RDS") %>% 
+spot_size= readRDS("../Results/Max_spot_size/PBMC_spot_size_13102025.RDS") %>% 
            filter(deconv_type !="SpatialDecon \n custom signature") %>% 
            mutate(deconv_type = deconv_type %>%
            fct_recode(SpatialDecon = "SpatialDecon \n default signature") %>%
            fct_drop()) %>% 
            mutate(Max_spot_size= factor(Max_spot_size,
-                                   levels=c("600-3996 cells \n in Sample/Spot","75-496 cells \n in Sample/Spot","6-16 cells \n in Sample/Spot"))) %>% 
-  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type))
+                                   levels=c("600-3996 cells \n in Sample/Spot","75-496 cells \n in Sample/Spot","6-12 cells \n in Sample/Spot")))
 
 correlation_plots(spot_size,parameter,analysis_type)
 plotting_clr_and_mean_aitchison_plots(spot_size,parameter,analysis_type, cell_types,shape_manual,color_manual)
 ```
 
-# Sequencing depth with signature matrix
-```{r}
-shape_manual= c("0.002% reads"=49,
-                "0.02% reads"=50,
-                "1% reads"=51,
-                "20% reads"=52,
-                "60% reads"=53,
-                "100% reads"= 54)
-
-color_manual=c("Custom \nSignature"="#59a89c",
-               "Immunostates"="#e02b35",
-               "LM22"="#f0c571",
-               "SafeTME"="#a559aa",
-               "TIL10"="#082a54")
-               
-parameter="Sequencing_depth"
-cell_types=c("B cell","T cell","NK cell","Monocyte")
-analysis_type="PBMC_signature_with_sequencing"
- load("../Results/Signature_Matrix/PBMC_signature_matrix_with_sequencing_depth.RData") 
-           
-   
-sig_mat= comp_signature_matrix_res %>% 
-   mutate(deconv_type=ifelse(deconv_type=="Custom","Custom \nSignature",deconv_type)) %>% 
-   mutate(deconv_type=factor(deconv_type, levels = c("Custom \nSignature","Immunostates","LM22","SafeTME","TIL10"))) %>% 
-           dplyr::filter(Sequencing_depth %in% c("100% reads","60% reads","20% reads","1% reads", "0.02% reads","0.002% reads") ) %>% 
-   mutate(Sequencing_depth=droplevels(Sequencing_depth))%>% 
-   mutate(Sequencing_depth=factor(Sequencing_depth, levels = rev(levels(Sequencing_depth)))) %>% 
-  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type))
-
-correlation_plots(sig_mat,parameter,analysis_type)
-plotting_clr_and_mean_aitchison_plots(sig_mat,parameter,analysis_type, cell_types,shape_manual,color_manual)
-```
 

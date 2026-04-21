@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-source("./0_functions.R")
+source("./functions.R")
 library(tidyverse)
 library(SummarizedExperiment)
 library(immunedeconv)
@@ -51,13 +51,7 @@ spatial_df <- spatial_mat %>%
               as.data.frame() %>% 
               rownames_to_column(var = "HUGO")
 
-write.csv(spatial_df, file = "../intermediate_data/Nanostring_glioma_data/nanostring_glioma_data_tpm.csv")
 #colData(glioma_spatial_object)
-```
-
-
-```{r}
-spatial_df <- read_csv("../intermediate_data/Nanostring_glioma_data/nanostring_glioma_data_tpm.csv") %>% select(2:ncol(.))
 ```
 
 # Deconvoluting with Quantiseq, EPIC and MCP counter from the ImmuneDecon package with their respective Signature matrices or Marker genes
@@ -80,7 +74,7 @@ mcp_counter_res <- deconvolute(spatial_mat, "mcp_counter",tumor = TRUE) %>%
                     dplyr::summarise_if(is.numeric, sum) %>% 
                     min_max_normalisation_for_mcp(.,"GBM","") %>% 
                     pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
-                    mutate(Deconvolution_type="MCPcounter*")
+                    mutate(Deconvolution_type="MCPcounter")
 
 epic_res <- deconvolute(spatial_mat, "epic",tumor = TRUE) %>% 
                 mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
@@ -89,35 +83,6 @@ epic_res <- deconvolute(spatial_mat, "epic",tumor = TRUE) %>%
                 dplyr::summarise_if(is.numeric, sum) %>% 
                 pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>% 
                 mutate(Deconvolution_type="EPIC")
-
-# Using the PBMC reference for refernce based methods
-signature_reference <- readRDS("../intermediate_data/processed_sces/pbmc8k.rds")
-
-spotligh_res <- spotlight_decon(spatial_mat, signature_reference, mean_auc_cutoff = 0.8) %>% 
-                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
-                dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
-                dplyr::group_by(cell_type) %>%
-                dplyr::summarise_if(is.numeric, sum) %>% 
-                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>%
-                mutate(Deconvolution_type="SPOTlight")
-
-  
-rctd_res <- rctd_decon(spatial_df, signature_reference) %>% 
-            mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
-            dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
-            dplyr::group_by(cell_type) %>%
-            dplyr::summarise_if(is.numeric, sum) %>% 
-            pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>%
-            mutate(Deconvolution_type="RCTD")
-
-cell2loc_res <- read_csv("../intermediate_data/cell2location_res/nanostring_glioma_cell2loc_res.csv") %>% 
-                dplyr::rename("cell_type"="...1") %>% 
-                mutate(cell_type= ifelse(grepl("T cell",cell_type)==TRUE,"T cell",cell_type)) %>% 
-                dplyr::filter(cell_type %in% c("B cell","T cell") ) %>% 
-                dplyr::group_by(cell_type) %>%
-                dplyr::summarise_if(is.numeric, sum) %>% 
-                pivot_longer(cols = -cell_type, names_to = "Sample_name", values_to = "Deconvolution_proportions") %>%
-                mutate(Deconvolution_type="cell2location")
 ```
 
 # Deconvolution with Spotlight using the custom single cell dataset
@@ -222,12 +187,12 @@ mytheme=list(theme_foundation(base_size=14, base_family="sans")
 ```
 
 ```{r}
- sp_res_df= rbind(quntiseq_res,epic_res,mcp_counter_res,spotligh_res,spatial_decon_default_res,rctd_res, cell2loc_res) %>% 
+ sp_res_df= rbind(quntiseq_res,epic_res,mcp_counter_res,spatial_decon_default_res) %>% 
  left_join(proximity_density,by=c("Sample_name"="Sample_name","cell_type"="cell_type"))
 
 nanostring_data=sp_res_df %>% 
 drop_na() %>% 
-mutate(Deconvolution_type=factor(Deconvolution_type, levels=c("quanTIseq","EPIC","MCPcounter","SPOTlight","SpatialDecon","RCTD","cell2location"))) %>% 
+mutate(Deconvolution_type=factor(Deconvolution_type, levels=c("quanTIseq","EPIC","MCPcounter","SpatialDecon"))) %>% 
 mutate(Deconvolution_cells= Deconvolution_proportions*Nuclei_from_GeoMx) %>% 
  ggplot(aes(x=(multiplex_value),y=Deconvolution_cells))+
   geom_point(aes(color=cell_type), size=2) +
@@ -243,7 +208,9 @@ mutate(Deconvolution_cells= Deconvolution_proportions*Nuclei_from_GeoMx) %>%
     mytheme+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-#save(nanostring_data,file ="../Results/Figure_rds/nanostring_spatial_corplot.RData")
+save(nanostring_data,file = paste0("../Results/Figure_rds/nanostring_spatial_corplot.RData"))
+
+max(sp_res_df %>% filter(is.na(Nuclei_from_GeoMx)==FALSE) %>% pull(Nuclei_from_GeoMx))
 ```
 
 # Getting percentages of B cells , T cell and macrophages from a different sheet ( Need to confirm that this data is what it seems to me)
@@ -271,21 +238,20 @@ cell_counts_multiplex_mcp = cell_counts_multiplex %>%
 
 sp_res_df_mcp=sp_res_df %>% 
               drop_na() %>% 
-              dplyr::filter(Deconvolution_type=="MCPcounter*") %>% 
+              dplyr::filter(Deconvolution_type=="MCPcounter") %>% 
               select(cell_type,Sample_name,Deconvolution_proportions,Deconvolution_type) %>% 
               left_join(colData(glioma_spatial_object) %>% as.data.frame() %>% select(Sample_name,SampleID),by=c("Sample_name"="Sample_name")) %>% 
-              left_join(cell_counts_multiplex_mcp, by=c("SampleID"="Scan_ID","cell_type"="cell_type")) %>% 
-              mutate(Percentage=Percentage*100)
+              left_join(cell_counts_multiplex_mcp, by=c("SampleID"="Scan_ID","cell_type"="cell_type"))
 
 percentage_multiplex_nanostring=sp_res_df %>% 
 drop_na() %>% 
-dplyr::filter(Deconvolution_type!="MCPcounter*") %>% 
+dplyr::filter(Deconvolution_type!="MCPcounter") %>% 
 select(cell_type,Sample_name,Deconvolution_proportions,Deconvolution_type) %>% 
 left_join(colData(glioma_spatial_object) %>% as.data.frame() %>% select(Sample_name,SampleID),by=c("Sample_name"="Sample_name")) %>% 
 left_join(cell_counts_multiplex, by=c("SampleID"="Scan_ID","cell_type"="cell_type")) %>% 
 rbind(sp_res_df_mcp) %>% 
 mutate(Deconvolution_type=ifelse(Deconvolution_type=="MCPcounter","MCPcounter*",Deconvolution_type)) %>% 
-mutate(Deconvolution_type=factor(Deconvolution_type, levels=c("quanTIseq","EPIC","MCPcounter*","SPOTlight","SpatialDecon","RCTD","cell2location")))
+mutate(Deconvolution_type=factor(Deconvolution_type, levels=c("quanTIseq","EPIC","MCPcounter*","SpatialDecon")))
   
   
 percentage_multiplex_plt=percentage_multiplex_nanostring %>% 
@@ -296,52 +262,15 @@ percentage_multiplex_plt=percentage_multiplex_nanostring %>%
                                  "Macrophage"  =  "#FFFFB3",
                                  "T cell"  =  "#FDB462")) +
     geom_smooth(method = "lm", formula = y~x, col = "black") +
-  facet_grid(~Deconvolution_type)+
-  mytheme+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
-  geom_line(data = data.frame(x = 0:100, y = (0:100) / 100), aes(x = x, y = y), color = "red", linetype="dotted")+
-  ylab("Predicted proportions")+
-  xlab("Percentage from mIF")+
-  labs(color = "Cell Type")+
-  theme(
-    panel.background = element_rect(fill = "white", colour = NA),
-    plot.background  = element_rect(fill = "white", colour = NA),
-    panel.grid.major = element_line(colour = "grey90"),
-    panel.grid.minor = element_blank(),
-    axis.text.x = element_text(angle = 45, hjust = 1))
+    ylab("Deconvolution proportions") +
+    xlab("Percentage from Multiplex") +
+    #ylim(0,1)+
+    facet_grid(~Deconvolution_type)+
+    mytheme+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggsave(filename = "../manuscript/figs/nanostring_vs_multiplex_updated_mcp.png", plot=percentage_multiplex_plt, width = 9, height = 8)
 
 write_rds(percentage_multiplex_plt, file ="../manuscript/figs/nanostring_vs_multiplex_updated_mcp.RDS" )
 
 ```
-
-
-```{r}
-# res= read_rds("../manuscript/figs/nanostring_vs_multiplex_updated_mcp.RDS")
-# 
-# plt=res$data %>% 
-#   ggplot(aes(x=Percentage,y=Deconvolution_proportions))+
-#   geom_point(aes(color=cell_type), size=2) +
-#   stat_cor(method = "pearson",size=4)+
-#   scale_color_manual (values = c ( "B cell"  =  "#8DD3C7" , 
-#                                  "Macrophage"  =  "#FFFFB3",
-#                                  "T cell"  =  "#FDB462")) +
-#     geom_smooth(method = "lm", formula = y~x, col = "black") +
-#     facet_grid(~Deconvolution_type)+
-#     mytheme+
-#   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
-#   geom_line(data = data.frame(x = 0:100, y = (0:100) / 100), aes(x = x, y = y), color = "red", linetype="dotted")+
-#   ylab("Predicted proportions")+
-#   xlab("Percentage from mIF")+
-#   labs(color = "Cell Type")+
-#   theme(
-#     panel.background = element_rect(fill = "white", colour = NA),
-#     plot.background  = element_rect(fill = "white", colour = NA),
-#     panel.grid.major = element_line(colour = "grey90"),
-#     panel.grid.minor = element_blank())
-# 
-# write_rds(plt, file ="../manuscript/figs/nanostring_vs_multiplex_updated_mcp_v2.RDS" )
-
-```
-

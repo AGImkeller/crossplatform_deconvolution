@@ -46,19 +46,6 @@ library(viridis)
 library(ggthemes)
 library(forcats)
 library(singleCellTK)
-library("spacexr")
-
-# Sys.setenv(CUDA_VISIBLE_DEVICES = "")
-# Sys.setenv(PYTHONNOUSERSITE = "1")
-# 
-# 
-# library(reticulate)
-# use_condaenv("cell2loc_env", required = TRUE)
-# use_python("/home/aakanksha/miniforge3/envs/cell2loc_env/bin/python", required = TRUE)
-# 
-# py_run_string("import cell2location; print('ok')")
-# source_python("run_cell2location.py")
-
 
 ####
 ## Aim: To process single cell data and return a SingleCellExperiment Object 
@@ -464,92 +451,7 @@ spatial_decon_updated <- function(spatial_data, single_cell_data, matrix_type = 
 
 # spatial_data=deconv_table
 # single_cell_data=signature_reference
-lm22_map <- c(
-  "B cells naive"                    = "B cell",
-  "B cells memory"                   = "B cell",
-  "Plasma cells"                     = "Plasma cell",
-  "T cells CD8"                      = "T cell",
-  "T cells CD4 naive"                = "T cell",
-  "T cells CD4 memory resting"       = "T cell",
-  "T cells CD4 memory activated"     = "T cell",
-  "T cells regulatory (Tregs)"       = "T cell",
-  "T cells follicular helper"        = "T cell",
-  "T cells gamma delta"              = "T cell",
-  "NK cells resting"                 = "NK cell",
-  "NK cells activated"               = "NK cell",
-  "Monocytes"                        = "Monocyte",
-  "Macrophages M0"                   = "Macrophage",
-  "Macrophages M1"                   = "Macrophage",
-  "Macrophages M2"                   = "Macrophage",
-  "Dendritic cells resting"          = "Dendritic cell",
-  "Dendritic cells activated"        = "Dendritic cell",
-  "Mast cells activated"             = "Mast cell",
-  "Mast cells resting"               = "Mast cell",
-  "Eosinophils"                      = "Eosinophil",
-  "Neutrophils"                      = "Neutrophil")
 
-safetme_map <- cell_type_map2 <- c(
-  "B.naive"           = "B cell",
-  "B.memory"          = "B cell",
-  "plasma"            = "Plasma cell",
-  "T.CD4.naive"       = "T cell",
-  "T.CD4.memory"      = "T cell",
-  "T.CD8.naive"       = "T cell",
-  "T.CD8.memory"      = "T cell",
-  "Treg"              = "T cell",
-  "NK"                = "NK cell",
-  "monocytes.C"       = "Monocyte",
-  "monocytes.NC.I"    = "Monocyte",
-  "macrophages"       = "Macrophage",
-  "pDCs"              = "Dendritic cell",
-  "mDCs"              = "Dendritic cell",
-  "mast"              = "Mast cell",
-  "endothelial.cells" = "Endothelial cell",
-  "neutrophils"       = "Neutrophil",
-  "fibroblasts"       = "Fibroblast cell")
-
-immunostates_map <- c(
-  "CD14_positive_monocyte"          = "Monocyte",
-  "CD16_positive_monocyte"          = "Monocyte",
-  "CD4_positive_alpha_beta_T_cell"  = "T cell",
-  "CD56bright_natural_killer_cell"  = "NK cell",
-  "CD56dim_natural_killer_cell"     = "NK cell",
-  "CD8_positive_alpha_beta_T_cell"  = "T cell",
-  "MAST_cell"                       = "Mast cell",
-  "basophil"                        = "Basophil",
-  "eosinophil"                      = "Eosinophil",
-  "gamma_delta_T_cell"              = "T cell",
-  "hematopoietic_progenitor"        = "Progenitor cell",
-  "macrophage_m0"                   = "Macrophage",
-  "macrophage_m1"                   = "Macrophage",
-  "macrophage_m2"                   = "Macrophage",
-  "memory_B_cell"                   = "B cell",
-  "myeloid_dendritic_cell"          = "Dendritic cell",
-  "naive_B_cell"                    = "B cell",
-  "neutrophil"                      = "Neutrophil",
-  "plasma_cell"                     = "Plasma cell",
-  "plasmacytoid_dendritic_cell"     = "Plasmacytoid Dendritic cell")
-
-til10_map <- c(
-  "B.cells"          = "B cell",
-  "Macrophages.M1"   = "Macrophage",
-  "Macrophages.M2"   = "Macrophage",
-  "Monocytes"        = "Monocyte",
-  "Neutrophils"      = "Neutrophil",
-  "NK.cells"         = "NK cell",
-  "T.cells.CD4"      = "T cell",
-  "T.cells.CD8"      = "T cell",
-  "Tregs"            = "T cell",
-  "Dendritic.cells"  = "Dendritic cell")
-
-custom_sig_map <- c(
-  "B cells"          = "B cell",
-  "Monocytes"        = "Monocyte",
-  "T cells"          = "T cell",
-  "NK cells"         = "NK cell",
-  "Dendritic cells"  = "Dendritic cell",
-  "Progenitors"      = "Progenitor cell"
-)
 
 spatial_deconv_updated_without_cell_number <- function(spatial_data, single_cell_data, matrix_type = c("safeTME", "custom","LM22","TIL10","Immunostates","Glioma_custom_matrix"))
   
@@ -596,9 +498,8 @@ spatial_deconv_updated_without_cell_number <- function(spatial_data, single_cell
     res_df$cell_type<-row.names(res_df)
     row.names(res_df)=NULL
     
-    #res_df$cell_type<- mgsub::mgsub((res_df$cell_type), c("B cells","Monocytes","T cells","NK cells","Dendritic cells","Progenitors" ), 
-    #                               c("B cell","Monocyte","T cell","NK cell","Dendritic cell","Progenitor cell"))
-    res_df = res_df %>% mutate(cell_type = coalesce(custom_sig_map[cell_type], cell_type))
+    res_df$cell_type<- mgsub::mgsub((res_df$cell_type), c("B cells","Monocytes","T cells","NK cells","Dendritic cells","Progenitors" ), 
+                                    c("B cell","Monocyte","T cell","NK cell","Dendritic cell","Progenitor cell"))
     res_df = res_df %>% dplyr::mutate(cell_type= sub("s$", "", cell_type))
     # Change the naming if the cell annotation differs in the single cell data
     
@@ -614,13 +515,12 @@ spatial_deconv_updated_without_cell_number <- function(spatial_data, single_cell
     res_df$cell_type<-row.names(res_df)
     row.names(res_df)=NULL
     
-    # res_df$cell_type<- mgsub::mgsub((res_df$cell_type), c( "macrophages","mast","B.naive", "B.memory" ,
-    #                                                        "plasma" ,"T.CD4.naive","T.CD4.memory","T.CD8.naive" ,  "T.CD8.memory" ,"NK", "pDCs",
-    #                                                        "mDCs","monocytes.C" , "monocytes.NC.I" ,   "neutrophils","Treg", "endothelial.cells", 
-    #                                                        "fibroblasts"), c("Macrophage","Mast cell","B cell","B cell","Plasma cell","T cell",
-    #                                                                          "T cell","T cell","T cell","NK cell","Dendritic cell","Dendritic cell","Monocyte",
-    #                                                                          "Monocyte","Neutrophil","T cell","Endothelial cell","Fibroblast cell"))
-    res_df = res_df %>% mutate(cell_type = coalesce(safetme_map[cell_type], cell_type))
+    res_df$cell_type<- mgsub::mgsub((res_df$cell_type), c( "macrophages","mast","B.naive", "B.memory" ,
+                                                           "plasma" ,"T.CD4.naive","T.CD4.memory","T.CD8.naive" ,  "T.CD8.memory" ,"NK", "pDCs",
+                                                           "mDCs","monocytes.C" , "monocytes.NC.I" ,   "neutrophils","Treg", "endothelial.cells", 
+                                                           "fibroblasts"), c("Macrophage","Mast cell","B cell","B cell","Plasma cell","T cell",
+                                                                             "T cell","T cell","T cell","NK cell","Dendritic cell","Dendritic cell","Monocyte",
+                                                                             "Monocyte","Neutrophil","T cell","Endothelial cell","Fibroblast cell"))
     
   }
   else if (matrix_type=="TIL10")
@@ -632,9 +532,8 @@ spatial_deconv_updated_without_cell_number <- function(spatial_data, single_cell
     res_df <-as.data.frame(resu$prop_of_all)
     res_df$cell_type<-row.names(res_df)
     row.names(res_df)=NULL
-    # res_df$cell_type<- mgsub::mgsub((res_df$cell_type), c("B.cells" ,"Macrophages.M1" , "Macrophages.M2" , "Monocytes", "Neutrophils" ,"NK.cells" ,"T.cells.CD4","T.cells.CD8","Tregs","Dendritic.cells"), 
-    #                                 c("B cell","Macrophage","Macrophage","Monocyte","Neutrophil","NK cell","T cell","T cell","T cell","Dendritic cell"))
-    res_df = res_df %>% mutate(cell_type = coalesce(til10_map[cell_type], cell_type))
+    res_df$cell_type<- mgsub::mgsub((res_df$cell_type), c("B.cells" ,"Macrophages.M1" , "Macrophages.M2" , "Monocytes", "Neutrophils" ,"NK.cells" ,"T.cells.CD4","T.cells.CD8","Tregs","Dendritic.cells"), 
+                                    c("B cell","Macrophage","Macrophage","Monocyte","Neutrophil","NK cell","T cell","T cell","T cell","Dendritic cell"))
     
   }
   
@@ -647,15 +546,14 @@ spatial_deconv_updated_without_cell_number <- function(spatial_data, single_cell
     res_df <-as.data.frame(resu$prop_of_all)
     res_df$cell_type<-row.names(res_df)
     row.names(res_df)=NULL
-    # res_df$cell_type<- mgsub::mgsub((res_df$cell_type), c("B cells naive","B cells memory" ,"Plasma cells","T cells CD8","T cells CD4 naive","T cells CD4 memory resting" ,"T cells CD4 memory activated",
-    #                                                       "T cells follicular helper","T cells regulatory (Tregs)","T cells gamma delta","NK cells resting","NK cells activated","Monocytes","Macrophages M0",              
-    #                                                       "Macrophages M1","Macrophages M2","Dendritic cells resting","Dendritic cells activated","Mast cells resting","Mast cells activated","Eosinophils",                 
-    #                                                       "Neutrophils"), 
-    #                                 c("B cell","B cell" ,"Plasma cell","T cell","T cell","T cell" ,"T cell",
-    #                                   "T cell","T cell","T cell","NK cell","NK cell","Monocyte","Macrophage",              
-    #                                   "Macrophage","Macrophage","Dendritic cell","Dendritic cell","Mast cell","Mast cell","Eosinophil",                 
-    #                                   "Neutrophil"))
-    res_df = res_df %>% mutate(cell_type = coalesce(lm22_map[cell_type], cell_type))
+    res_df$cell_type<- mgsub::mgsub((res_df$cell_type), c("B cells naive","B cells memory" ,"Plasma cells","T cells CD8","T cells CD4 naive","T cells CD4 memory resting" ,"T cells CD4 memory activated",
+                                                          "T cells follicular helper","T cells regulatory (Tregs)","T cells gamma delta","NK cells resting","NK cells activated","Monocytes","Macrophages M0",              
+                                                          "Macrophages M1","Macrophages M2","Dendritic cells resting","Dendritic cells activated","Mast cells resting","Mast cells activated","Eosinophils",                 
+                                                          "Neutrophils","T cells regulatory (Tregs)"), 
+                                    c("B cell","B cell" ,"Plasma cell","T cell","T cell","T cell" ,"T cell",
+                                      "T cell","T cell","T cell","NK cell","NK cell","Monocyte","Macrophage",              
+                                      "Macrophage","Macrophage","Dendritic cell","Dendritic cell","Mast cell","Mast cell","Eosinophil",                 
+                                      "Neutrophil","T cell"))
   }
   
   else if (matrix_type=="Immunostates")
@@ -667,15 +565,14 @@ spatial_deconv_updated_without_cell_number <- function(spatial_data, single_cell
     res_df <-as.data.frame(resu$prop_of_all)
     res_df$cell_type<-row.names(res_df)
     row.names(res_df)=NULL
-    # res_df$cell_type<- mgsub::mgsub((res_df$cell_type), c("CD14_positive_monocyte","CD16_positive_monocyte","CD4_positive_alpha_beta_T_cell","CD56bright_natural_killer_cell","CD56dim_natural_killer_cell",   
-    #                                                       "CD8_positive_alpha_beta_T_cell","MAST_cell","basophil","eosinophil","gamma_delta_T_cell","hematopoietic_progenitor",      
-    #                                                       "macrophage_m0","macrophage_m1","macrophage_m2","memory_B_cell","myeloid_dendritic_cell","naive_B_cell","neutrophil","plasma_cell","plasmacytoid_dendritic_cell"), 
-    #                                 c("Monocyte","Monocyte","T cell","NK cell","NK cell",   
-    #                                   "T cell","Mast cell","Basophil","Eosinophil","T cell","Progenitor cell",      
-    #                                   "Macrophage","Macrophage","Macrophage","B cell","Dendritic cell","B cell","Neutrophil","Plasma cell","Plasmacytoid Dendritic cell"))
-    res_df = res_df %>% mutate(cell_type = coalesce(immunostates_map[cell_type], cell_type))
+    res_df$cell_type<- mgsub::mgsub((res_df$cell_type), c("CD14_positive_monocyte","CD16_positive_monocyte","CD4_positive_alpha_beta_T_cell","CD56bright_natural_killer_cell","CD56dim_natural_killer_cell",   
+                                                          "CD8_positive_alpha_beta_T_cell","MAST_cell","basophil","eosinophil","gamma_delta_T_cell","hematopoietic_progenitor",      
+                                                          "macrophage_m0","macrophage_m1","macrophage_m2","memory_B_cell","myeloid_dendritic_cell","naive_B_cell","neutrophil","plasma_cell","plasmacytoid_dendritic_cell"), 
+                                    c("Monocyte","Monocyte","T cell","NK cell","NK cell",   
+                                      "T cell","Mast cell","Basophil","Eosinophil","T cell","Hematopoietic progenitor",      
+                                      "Macrophage","Macrophage","Macrophage","B cell","Dendritic cell","B cell","Neutrophil","Plasma cell","Plasmacytoid Dendritic cell"))
   }
-  
+ 
   else
   { print("Check your input")
   }
@@ -698,23 +595,16 @@ spatial_deconv_updated_without_cell_number <- function(spatial_data, single_cell
 # sce_NS=signature_reference
 # spatial_data_NS=deconv_table
 
-# spatial_data_NS = wta %>% as.data.frame() %>% rownames_to_column(var="HUGO")
-# sce_NS = sce
-
-spotlight_decon<-function(spatial_data_NS, sce_NS, mean_auc_cutoff=0.8)
+spotlight_decon<-function(spatial_data_NS, sce_NS)
   
-{   if (is.data.frame(spatial_data_NS)) {
-      rownames(spatial_data_NS) <- spatial_data_NS$HUGO
-      spatial_data_NS <- spatial_data_NS[, -1] %>% as.matrix()
-  
-      spe_NS <- SpatialExperiment(
-      assays  = list(counts = spatial_data_NS),
-      rowData = DataFrame(gene_name = rownames(spatial_data_NS)),
-      colData = DataFrame(sample_id = colnames(spatial_data_NS))
-      )
-      } else {
-      spe_NS <- spatial_data_NS
-      }
+{   rownames(spatial_data_NS) <- spatial_data_NS$HUGO
+    spatial_data_NS <- spatial_data_NS[,-1]
+    
+    ## Converting the spatial count matrix to a SingleCellExperiment Class
+    spe_NS <- SpatialExperiment(
+              assays = list(counts = spatial_data_NS),
+              rowData = rownames(spatial_data_NS),
+              colData = colnames(spatial_data_NS))
     
     # Fixing the duplicated row names
     sce_NS=singleCellTK::dedupRowNames(sce_NS)
@@ -734,30 +624,17 @@ spotlight_decon<-function(spatial_data_NS, sce_NS, mean_auc_cutoff=0.8)
     
     # Compute marker genes
     mgs <- scran::scoreMarkers(sce_NS,subset.row = genes)
-    # mgs_fil <- lapply(names(mgs),  function(i) {
-    #   x <- mgs[[i]]
-    #   # Filter and keep relevant marker genes, those with AUC > 0.8
-    #   x <- x[x$mean.AUC > 0.8, ] ## Changed for testing the hodgkins lymphoma case
-    #   # Sort the genes from highest to lowest weight
-    #   x <- x[order(x$mean.AUC, decreasing = TRUE), ]
-    #   # Add gene and cluster id to the dataframe
-    #   x$gene <- rownames(x)
-    #   x$cluster <- i
-    #   data.frame(x)
-    # })
-    
-    mgs_fil <- lapply(names(mgs), function(i) {
+    mgs_fil <- lapply(names(mgs),  function(i) {
       x <- mgs[[i]]
-      x <- x[x$mean.AUC > mean_auc_cutoff, ]
-      if (nrow(x) == 0) return(NULL)  # skip clusters with no markers passing threshold
+      # Filter and keep relevant marker genes, those with AUC > 0.8
+      x <- x[x$mean.AUC > 0.8, ] ## Changed for testing the hodgkins lymphoma case
+      # Sort the genes from highest to lowest weight
       x <- x[order(x$mean.AUC, decreasing = TRUE), ]
+      # Add gene and cluster id to the dataframe
       x$gene <- rownames(x)
       x$cluster <- i
       data.frame(x)
     })
-    
-    # Remove NULL entries
-    mgs_fil <- Filter(Negate(is.null), mgs_fil)
     mgs_df <- do.call(rbind, mgs_fil)
     
     idx <- split(seq(ncol(sce_NS)), sce_NS$cell)
@@ -772,17 +649,14 @@ spotlight_decon<-function(spatial_data_NS, sce_NS, mean_auc_cutoff=0.8)
     })
     sce_NS <- sce_NS[, unlist(cs_keep)]
     
+    
     ## Running the SPOTLight function (Training the NMF model)
     colnames(sce_NS)<-sce_NS$cell
-    # if some cell didn't pass the filter, it is not present, hence we subset to only keep the cells that pass the filter
-    keep <- sce_NS$cell %in% unique(mgs_df$cluster)
-    sce_NS_fil <- sce_NS[, keep]
-    
     #mgs_df
     res <- SPOTlight(
-      x = sce_NS_fil,
+      x = sce_NS,
       y = spe_NS,
-      groups = as.character(sce_NS_fil$cell),
+      groups = as.character(sce_NS$cell),
       mgs = mgs_df,
       hvg = hvg,
       weight_id = "mean.AUC",
@@ -792,25 +666,25 @@ spotlight_decon<-function(spatial_data_NS, sce_NS, mean_auc_cutoff=0.8)
     mat<-res$mat
     mod<-res$NMF
     
-    # plotTopicProfiles(
-    #   x = mod,
-    #   y = sce_NS$cell,
-    #   facet = FALSE,
-    #   min_prop = 0.01,
-    #   ncol = 1) +
-    #   theme(aspect.ratio = 1)
-    # 
-    # 
-    # plotTopicProfiles(
-    #   x = mod,
-    #   y = sce_NS$cell,
-    #   facet = TRUE,
-    #   min_prop = 0.01,
-    #   ncol = 6)
+    plotTopicProfiles(
+      x = mod,
+      y = sce_NS$cell,
+      facet = FALSE,
+      min_prop = 0.01,
+      ncol = 1) +
+      theme(aspect.ratio = 1)
     
     
-    # sign <- basis(mod)
-    # colnames(sign) <- paste0("Topic", seq_len(ncol(sign)))
+    plotTopicProfiles(
+      x = mod,
+      y = sce_NS$cell,
+      facet = TRUE,
+      min_prop = 0.01,
+      ncol = 6)
+    
+    
+    sign <- basis(mod)
+    colnames(sign) <- paste0("Topic", seq_len(ncol(sign)))
     
     mat_plot<-t(mat)
     mat_plot<-as.data.frame(mat_plot)
@@ -821,72 +695,131 @@ spotlight_decon<-function(spatial_data_NS, sce_NS, mean_auc_cutoff=0.8)
     return(mat_plot)
 
 }
+####
+## Aim: Perform all deconvolutions for one bootstrap value 
+# For the function deconvolution_for_bootstrap
+#  Input: (a) a dataframe with the pseudobulk samples with the known numbers of each cell type
+#          (b) character vector of the cell types in the datasets
+#          (c) character vector the datasets included
+#          (d) a data frame of the actual values of the cell types in the datasets included
+#          
+#  Output: (a) A dataframe with cell deconvolutions from Quantiseq,epic,mcp,spotlight, spatial_deco with tme and spatial decon with your signature matrix
 
-# For the function rctd
-#   Input: (a) A dataframe with the peseudobulk samples (GeneSymbols as rows and colnames as sample)
-#          (b) A Processed SingleCellExperiment dataset
-#   Output: (a) A dataframe with proportions of all the cell types
+# Modifying the function on 30 Jan 2025:
+# Which trying to calculate aitchison distances, as our data it compositional, both the actual_fractions and the Deconvolution factions should add upto 1 at the end.
+# However in the result of this function, I notices that when certain celltypes aren't predicted by the deconvolution methodolody for a particular Gene_panel, it doesn't
+# show in the table after joining. And hence the factions don't add up to 1. So, modifying the function to have all the cells in the actual proportions added to the table
+# irrespective of the status whether they are found in the prediction or not.
 
-
-# deconv_table_no_norm = mat_tpm_like %>% as.data.frame() %>% rownames_to_column(var="HUGO")
-# signature=signature_reference
-rctd_decon<-function(deconv_table, signature, rctd_mode=c("multi","full"))
+deconvolution_for_bootstrap <- function(deconv_table, cell_types,signature_reference, actual_cell_proportions)
+  
 {
-  # Replacing NA with 0
-  sp= deconv_table %>% column_to_rownames(var="HUGO") %>% as.matrix
-  sp[is.na(sp)] <- 0
   
-  sp=round(sp)
+  ## Calling the deconvolution methods
   
-  # Creating a valid SpatialExperiment object for RCTD
-  spe=SpatialExperiment(assay = list(counts = sp))
-  spe <- spe[!duplicated(rownames(spe)), ] # remove duplicated rows
+  # Spotlight
+  spl <- tryCatch({
+    spotlight_decon(deconv_table, signature_reference)
+  }, error = function(e) {
+    cat("Error occurred during Spotlight deconvolution. Skipping...\n")
+    return(NULL)  # Return NULL if there was an error
+  })
   
-  # Removing duplicates from single cell reference
-  signature<- signature[!duplicated(rownames(signature)),]
-  colnames(signature)=signature$Barcode
+  if (!is.null(spl)) {
+    spl$deconv_type <- "SPOTlight"
+  }
   
-  # Running RCTD is "multi" mode that contstrains the regression to add to 1, and expects the cell-type
-  # all of which are defined in the single cell reference
-  rctd_data <- createRctd(spe, signature,cell_type_col = "cell")
-  results_spe <- runRctd(rctd_data, rctd_mode = rctd_mode, max_cores = 4)
-  res= as.data.frame(as.matrix(assay(results_spe, "weights"))) %>% 
-          rownames_to_column(var="cell_type") %>% 
-          mutate(cell_type= sub("s$", "", cell_type))
-  return(res)
+  # Spatial deconv updated with known cell numbers (with TME)
+  # sd_tme_known <- spatial_decon_updated(deconv_table,matrix_type = "safeTME",actual_cell_proportions=actual_cell_proportions) %>% 
+  #                 mutate(across(-cell_type, ~ . / sum(.))) %>% 
+  #                 mutate(deconv_type = "SpatialDecon (TME)\n cells known") 
+
+  # Spatial deconv updated with known cell numbers(with custom matrix)
+  # sd_cus_known <- spatial_decon_updated(deconv_table,signature_reference,matrix_type = "custom",actual_cell_proportions=actual_cell_proportions) %>% 
+  #                 mutate(across(-cell_type, ~ . / sum(.))) %>% 
+  #                 mutate(deconv_type="SpatialDecon (Custom)\n cells known")  
+  
+  # Spatial deconv updated with unknown cell numbers (with TME)
+  sd_tme <- spatial_deconv_updated_without_cell_number(deconv_table,matrix_type = "safeTME") %>% 
+                    mutate(deconv_type="SpatialDecon (TME)\n cells unknown")
+  
+  # Spatial deconv updated with unknown cell numbers(with custom matrix)
+  # sd_cus_unknown <- spatial_deconv_updated_without_cell_number(deconv_table,single_cell_data = signature_reference,matrix_type = "custom") %>% 
+  #                   mutate(deconv_type="SpatialDecon (Custom)\n cells unknown")
+  
+  # To be put in the generating matrix function, used in all of them
+  deconv_mat <- deconv_table %>% 
+                  column_to_rownames(var = "HUGO") %>% 
+                  drop_na()
+                  
+  
+  # Quantiseq
+  quant <- deconvolute(deconv_mat, "quantiseq",tumor = FALSE) %>% 
+           mutate(deconv_type="quanTIseq")
+  
+  # Epic ( Using mRNA proportion as we are using in silico samples)
+  epic_res <- EPIC(deconv_mat)
+  epic=t(epic_res$mRNAProportions) %>% 
+            as.data.frame() %>% 
+            rownames_to_column(var = "cell_type") %>% 
+            add_row(cell_type = "Monocyte") %>% # Adding empty row for monocytes
+            mutate(deconv_type="EPIC")
+  
+  # MCP
+  mcp <- deconvolute(deconv_mat, "mcp_counter")
+  
+  # Calculating fractions for the mcp values
+  mcp= mcp %>%
+       mutate(across(-cell_type, ~ . / sum(.)))  %>% 
+       complete(cell_type = cell_types) %>% 
+       mutate(deconv_type="MCPcounter")
+ 
+  
+  print("All the deconvolutions completed successfully")
+  
+  # Making a singular quantitative table
+  
+  # Joining all the tables
+  quantitative_tables <- rbind(quant,epic,mcp,if (!is.null(spl)) spl,sd_tme)
+  
+  
+  print("All quantitative tables joined succesfully")
+  
+  # Grouping one of cells
+  quantitative_tables$cell_type<-str_replace_all(quantitative_tables$cell_type, fixed(c("T cell CD4+ (non-regulatory)" = "T cell" ,
+                                                                                        "T cell CD8+" = "T cell",
+                                                                                        "T cell regulatory (Tregs)" = "T cell",
+                                                                                        "T cell CD4+" = "T cell", 
+                                                                                        "Macrophage M1" = "Macrophage",    
+                                                                                        "Macrophage M2" = "Macrophage",
+                                                                                        "CD4_Tcells"="T cell",
+                                                                                        "CD8_Tcells"="T cell",
+                                                                                        "Macrophages"="Macrophage", 
+                                                                                        "NKcells"="NK cell",
+                                                                                        "Bcells"="B cell",
+                                                                                        "otherCells"="uncharacterized cell",
+                                                                                        "CAFs"="Cancer associated fibroblast",
+                                                                                        "Endothelial"="Endothelial cell")))
+  
+  
+  # Summarising all the same type of cells together
+  summarised_quantitative_table = quantitative_tables %>% 
+                                  dplyr::group_by(deconv_type, cell_type) %>% 
+                                  dplyr::summarise_if(is.numeric, sum)
+  
+  print("Summarised quantitative table is being processed")
+  
+  # For Qualitative Plots
+  
+  # Adding actual proportions to the tables
+   summarised_quantitative_table=left_join(summarised_quantitative_table, 
+             actual_cell_proportions %>% mutate(cell_type= sub("s$", "", cell_type)), 
+             by=c("cell_type"="cell_type"))
+  
+  return(summarised_quantitative_table)
 }
 
 
-# For the function to run cell2location from R
-#   Input: (a) A matrix with the peseudobulk samples (GeneSymbols as rows and colnames as sample)
-#          (b) tissue= pbmc or aml
-#          (c) parameter = experimental_factor+subfactor
-#          (d) min cells = no of cells in the sample/spot
-#          (e) regularisation_constant = 100 (default)
-#
-#   Output: (a) A dataframe with proportions of all the cell types
-
-# run_cell2location_from_r <- function(count_matrix, tissue, parameter, min_cells, regularisation_constant) {
-#   
-#   count_mat_py <- r_to_py(t(count_matrix))  # cell2location expects spots x genes
-#   gene_names   <- r_to_py(rownames(count_matrix))
-#   spot_names   <- r_to_py(colnames(count_matrix))
-#   
-#   # call python function
-#   props <- run_cell2location(
-#     count_matrix   = count_mat_py,
-#     gene_names     = gene_names,
-#     spot_names     = spot_names,
-#     tissue         = tissue,
-#     parameter      = parameter,
-#     min_cells      = min_cells,
-#     regularisation_constant = regularisation_constant
-#   )
-#   
-#   return(py_to_r(props))
-# }
-# 
-# test=run_cell2location_from_r(bootstraped_data_matrix,"pbmc","deafult",2000,100)
 
 
 ## Author: Aakanksha Singh
@@ -1051,6 +984,96 @@ mcp_deconvolution_summary <- function(deconv_table,actual_cell_proportions)
 
 # Updated function for deconvolution on the bootstrapped samples
 
+deconvolution_for_bootstrap_v2 <- function(deconv_table, cell_types,signature_reference, actual_cell_proportions)
+  
+{
+  
+  ## Calling the deconvolution methods
+  
+  # Spotlight
+  spl <- tryCatch({
+    spotlight_decon(deconv_table, signature_reference)
+  }, error = function(e) {
+    cat("Error occurred during Spotlight deconvolution. Skipping...\n")
+    return(NULL)  # Return NULL if there was an error
+  })
+  
+  if (!is.null(spl)) {
+    spl$deconv_type <- "SPOTlight"
+  }
+  
+  
+  # Spatial deconv updated with unknown cell numbers (with TME)
+  sd_tme <- spatial_deconv_updated_without_cell_number(deconv_table,matrix_type = "safeTME") %>% 
+    mutate(deconv_type="SpatialDecon (TME)\n cells unknown")
+  
+  
+  # To be put in the generating matrix function, used in all of them
+  deconv_mat <- deconv_table %>% 
+    column_to_rownames(var = "HUGO") %>% 
+    drop_na()
+  
+  
+  # Quantiseq
+  quant <- deconvolute(deconv_mat, "quantiseq",tumor = FALSE) %>% 
+    mutate(deconv_type="quanTIseq")
+  
+  # Epic ( Using mRNA proportion as we are using in silico samples)
+  epic_res <- EPIC(deconv_mat)
+  epic=t(epic_res$mRNAProportions) %>% 
+    as.data.frame() %>% 
+    rownames_to_column(var = "cell_type") %>% 
+    mutate(deconv_type="EPIC")
+  
+  #Summarised mcp results
+  mcp_res  =mcp_deconvolution_summary(deconv_table,actual_cell_proportions)
+  
+  print("All the deconvolutions completed successfully")
+  
+  # Making a singular quantitative table
+  
+  # Joining all the tables
+  quantitative_tables <- rbind(quant,epic,if (!is.null(spl)) spl,sd_tme)
+  
+  
+  print("All quantitative tables joined succesfully")
+  
+  # Grouping one of cells
+  quantitative_tables$cell_type<-str_replace_all(quantitative_tables$cell_type, fixed(c("T cell CD4+ (non-regulatory)" = "T cell" ,
+                                                                                        "T cell CD8+" = "T cell",
+                                                                                        "T cell regulatory (Tregs)" = "T cell",
+                                                                                        "T cell CD4+" = "T cell", 
+                                                                                        "Macrophage M1" = "Macrophage",    
+                                                                                        "Macrophage M2" = "Macrophage",
+                                                                                        "CD4_Tcells"="T cell",
+                                                                                        "CD8_Tcells"="T cell",
+                                                                                        "Macrophages"="Macrophage", 
+                                                                                        "NKcells"="NK cell",
+                                                                                        "Bcells"="B cell",
+                                                                                        "otherCells"="uncharacterized cell",
+                                                                                        "CAFs"="Cancer associated fibroblast",
+                                                                                        "Endothelial"="Endothelial cell")))
+  
+  
+  # Summarising all the same type of cells together
+  summarised_quantitative_table = quantitative_tables %>% 
+    dplyr::group_by(deconv_type, cell_type) %>% 
+    dplyr::summarise_if(is.numeric, sum)
+  
+  print("Summarised quantitative table is being processed")
+  
+  # For Qualitative Plots
+  
+  # Adding actual proportions to the tables
+  summarised_quantitative_table2=left_join(summarised_quantitative_table, 
+                                           actual_cell_proportions %>% mutate(cell_type= sub("s$", "", cell_type)), 
+                                           by=c("cell_type"="cell_type")) 
+  
+  res=rbind(rbind(summarised_quantitative_table2, mcp_res %>% dplyr::select(colnames(summarised_quantitative_table2))))
+  
+  return(res)
+}
+
 # Deconvolution function with updated normalisation on the mcp samples (min max normalisation per subfactor)
 
 #Min Max Normalisation
@@ -1115,10 +1138,7 @@ mcp_deconvolution_summary_v2 <- function(deconv_table,actual_cell_proportions,co
   
   
   # Step 1: Deconvolution with mcp
-  mcp <- deconvolute(deconv_mat, "mcp_counter") %>% 
-     mutate(cell_type= case_when(cell_type=="T cell CD8+"~"T cell",
-                                 cell_type=="cytotoxicity score"~"Cytotoxicity Score",
-                                 .default = cell_type))
+  mcp <- deconvolute(deconv_mat, "mcp_counter")
   
   # Step 2: Normalising the MCP results on a scale of 0 to 1
   mcp_res <- min_max_normalisation_for_mcp(mcp,".Raw", column_character_specifications_for_mcp)
@@ -1142,32 +1162,105 @@ mcp_deconvolution_summary_v2 <- function(deconv_table,actual_cell_proportions,co
   summarised_quantitative_table_mcp=left_join(mcp_res, 
                                               actual_cell_proportions_for_mcp_res %>% mutate(cell_type= sub("s$", "", cell_type)), 
                                               by=c("cell_type"="cell_type"))
-                                              
   
   return(summarised_quantitative_table_mcp)
 }
 
-####
-## Aim: Perform all deconvolutions for one bootstrap value 
-# For the function deconvolution_for_bootstrap
-#  Input: (a) a dataframe with the pseudobulk samples with the known numbers of each cell type
-#         (b) a dataframe with the pseudobulk samples with the known numbers of each cell type for epic pseudobullks
-#         (c) a signature refernce single cell experiment object
-#         (d) a data frame of the actual values of the cell types in the datasets included
-#         (e) a data frame of the actual values of the cell types in the datasets included for epic
-#         (f) a character vector to help mcp distinguish between the different samples 
-#          
-#  Output: (a) A dataframe with cell deconvolutions from Quantiseq,epic,mcp,spotlight, spatial_decon (tme),rctd
+# Undated function for deconvolution with the new min max mcp results (06/10/2025)
 
-# Modifying the function on 30 Jan 2025:
-# Which trying to calculate aitchison distances, as our data it compositional, both the actual_fractions and the Deconvolution factions should add upto 1 at the end.
-# However in the result of this function, I notices that when certain celltypes aren't predicted by the deconvolution methodolody for a particular Gene_panel, it doesn't
-# show in the table after joining. And hence the factions don't add up to 1. So, modifying the function to have all the cells in the actual proportions added to the table
-# irrespective of the status whether they are found in the prediction or not.
+deconvolution_for_bootstrap_v3 <- function(deconv_table, cell_types,signature_reference, actual_cell_proportions,column_character_specifications_for_mcp)
+  
+{
+  
+  ## Calling the deconvolution methods
+  
+  # Spotlight
+  spl <- tryCatch({
+    spotlight_decon(deconv_table, signature_reference)
+  }, error = function(e) {
+    cat("Error occurred during Spotlight deconvolution. Skipping...\n")
+    return(NULL)  # Return NULL if there was an error
+  })
+  
+  if (!is.null(spl)) {
+    spl$deconv_type <- "SPOTlight"
+  }
+  
+  
+  # Spatial deconv updated with unknown cell numbers (with TME)
+  sd_tme <- spatial_deconv_updated_without_cell_number(deconv_table,matrix_type = "safeTME") %>% 
+    mutate(deconv_type="SpatialDecon (TME)\n cells unknown")
+  
+  
+  # To be put in the generating matrix function, used in all of them
+  deconv_mat <- deconv_table %>% 
+    column_to_rownames(var = "HUGO") %>% 
+    drop_na()
+  
+  
+  # Quantiseq
+  quant <- deconvolute(deconv_mat, "quantiseq",tumor = FALSE) %>% 
+    mutate(deconv_type="quanTIseq")
+  
+  # Epic ( Using mRNA proportion as we are using in silico samples)
+  epic_res <- EPIC(deconv_mat)
+  epic_res <- EPIC(deconv_mat)
+  epic=t(epic_res$mRNAProportions) %>% 
+    as.data.frame() %>% 
+    rownames_to_column(var = "cell_type") %>% 
+    mutate(deconv_type="EPIC")
+  
+  #Summarised mcp results
+  mcp_res  =mcp_deconvolution_summary_v2(deconv_table,actual_cell_proportions,column_character_specifications_for_mcp)
+  
+  print("All the deconvolutions completed successfully")
+  
+  # Making a singular quantitative table
+  
+  # Joining all the tables
+  quantitative_tables <- rbind(quant,epic,if (!is.null(spl)) spl,sd_tme)
+  
+  
+  print("All quantitative tables joined succesfully")
+  
+  # Grouping one of cells
+  quantitative_tables$cell_type<-str_replace_all(quantitative_tables$cell_type, fixed(c("T cell CD4+ (non-regulatory)" = "T cell" ,
+                                                                                        "T cell CD8+" = "T cell",
+                                                                                        "T cell regulatory (Tregs)" = "T cell",
+                                                                                        "T cell CD4+" = "T cell", 
+                                                                                        "Macrophage M1" = "Macrophage",    
+                                                                                        "Macrophage M2" = "Macrophage",
+                                                                                        "CD4_Tcells"="T cell",
+                                                                                        "CD8_Tcells"="T cell",
+                                                                                        "Macrophages"="Macrophage", 
+                                                                                        "NKcells"="NK cell",
+                                                                                        "Bcells"="B cell",
+                                                                                        "otherCells"="uncharacterized cell",
+                                                                                        "CAFs"="Cancer associated fibroblast",
+                                                                                        "Endothelial"="Endothelial cell")))
+  
+  
+  # Summarising all the same type of cells together
+  summarised_quantitative_table = quantitative_tables %>% 
+    dplyr::group_by(deconv_type, cell_type) %>% 
+    dplyr::summarise_if(is.numeric, sum)
+  
+  print("Summarised quantitative table is being processed")
+  
+  # For Qualitative Plots
+  
+  # Adding actual proportions to the tables
+  summarised_quantitative_table2=left_join(summarised_quantitative_table, 
+                                           actual_cell_proportions %>% mutate(cell_type= sub("s$", "", cell_type)), 
+                                           by=c("cell_type"="cell_type")) 
+  
+  res=rbind(rbind(summarised_quantitative_table2, mcp_res %>% dplyr::select(colnames(summarised_quantitative_table2))))
+  
+  return(res)
+}
+
 
 # Undated function for deconvolution a different bootstrapped sample for EPIC with three cell types (13/10/2025) (Latest)
-# deconv_table=bootstraped_data
-# signature_reference
 
 deconvolution_for_bootstrap_v4 <- function(deconv_table,
                                            deconv_tabe_epic, 
@@ -1194,15 +1287,8 @@ deconvolution_for_bootstrap_v4 <- function(deconv_table,
   
   
   # Spatial deconv updated with unknown cell numbers (with TME)
-  # sd_tme <- spatial_deconv_updated_without_cell_number(deconv_table,matrix_type = "safeTME") %>% 
-  #   mutate(deconv_type="SpatialDecon (TME)\n cells unknown")
-  sd_tme <- tryCatch({
-    spatial_deconv_updated_without_cell_number(deconv_table, matrix_type = "safeTME") %>%
-      mutate(deconv_type = "SpatialDecon (TME)\n cells unknown")
-  }, error = function(e) {
-    message("SpatialDecon TME failed: ", e$message)
-    NULL
-  })
+  sd_tme <- spatial_deconv_updated_without_cell_number(deconv_table,matrix_type = "safeTME") %>% 
+    mutate(deconv_type="SpatialDecon (TME)\n cells unknown")
   
   
   # To be put in the generating matrix function, used in all of them
@@ -1218,54 +1304,9 @@ deconvolution_for_bootstrap_v4 <- function(deconv_table,
   quant <- deconvolute(deconv_mat, "quantiseq",tumor = FALSE) %>% 
     mutate(deconv_type="quanTIseq")
   
-  # RCTD
-  # rctd <- rctd_decon(deconv_table, signature_reference, rctd_mode = "multi") %>% # require non-normalised values so round the values in the function
-  #         mutate(deconv_type="RCTD")
-  #  
-  # missing_spots_rctd <- setdiff(colnames(deconv_mat), colnames(rctd)[2:ncol(rctd)])
-  # 
-  # if (length(missing_spots_rctd) > 0) {
-  #   missing_df <- matrix(0, 
-  #                        nrow = nrow(rctd), 
-  #                        ncol = length(missing_spots_rctd),
-  #                        dimnames = list(rownames(rctd), missing_spots_rctd))
-  #   rctd_results <- cbind(rctd, missing_df)
-  # }else{
-  #   rctd_results=rctd
-  # }
-  # 
-  # # Reorder columns to match original spot order
-  # rctd_results <- rctd_results[, colnames(quant)]
-  
-  rctd_results <- tryCatch({
-    # RCTD
-    rctd <- rctd_decon(deconv_table, signature_reference,rctd_mode="full") %>%
-      mutate(deconv_type = "RCTD")
-    
-    missing_spots_rctd <- setdiff(colnames(deconv_mat), colnames(rctd)[2:ncol(rctd)])
-    
-    if (length(missing_spots_rctd) > 0) {
-      missing_df <- matrix(0,
-                           nrow = nrow(rctd),
-                           ncol = length(missing_spots_rctd),
-                           dimnames = list(rownames(rctd), missing_spots_rctd))
-      rctd=cbind(rctd, missing_df)
-    } else {
-      rctd=rctd
-    }
-    
-    # Reorder columns to match original spot order
-    rctd[, colnames(quant)]
-    
-  }, error = function(e) {
-    message("RCTD failed: ", e$message)
-    NULL  # or return an empty/NA-filled df if downstream code expects a result
-  })
-  
   # Epic ( Using mRNA proportion as we are using in silico samples)
   epic <- EPIC(deconv_mat_epic)
   epic_res=t(epic$mRNAProportions) %>% 
-  #epic_res=t(epic$cellFractions) %>% 
     as.data.frame() %>% 
     rownames_to_column(var = "cell_type") %>% 
     mutate(deconv_type="EPIC") %>% 
@@ -1274,7 +1315,7 @@ deconvolution_for_bootstrap_v4 <- function(deconv_table,
                                cell_type=="Bcells"~"B cell",
                                cell_type=="Macrophages"~"Macrophage",
                                cell_type=="NKcells"~"NK cell",
-                               cell_type=="otherCells"~"Uncharacterized cell",
+                               cell_type=="otherCells"~"uncharacterized cell",
                                cell_type=="CAFs"~"Cancer associated fibroblast",
                                cell_type=="Endothelial"~"Endothelial cell")) %>% 
     dplyr::group_by(deconv_type, cell_type) %>% 
@@ -1284,14 +1325,14 @@ deconvolution_for_bootstrap_v4 <- function(deconv_table,
     
   
   #Summarised mcp results
-  mcp_res  =mcp_deconvolution_summary_v2(deconv_table,actual_cell_proportions,column_character_specifications_for_mcp=column_character_specifications_for_mcp)
+  mcp_res  =mcp_deconvolution_summary_v2(deconv_table,actual_cell_proportions,column_character_specifications_for_mcp)
   
   print("All the deconvolutions completed successfully")
   
   # Making a singular quantitative table
   
   # Joining all the tables
-  quantitative_tables <- rbind(quant,if (!is.null(spl)) spl,sd_tme, rctd_results)
+  quantitative_tables <- rbind(quant,if (!is.null(spl)) spl,sd_tme)
   
   
   print("All quantitative tables joined succesfully")
@@ -1308,8 +1349,9 @@ deconvolution_for_bootstrap_v4 <- function(deconv_table,
                                                                                         "Macrophages"="Macrophage", 
                                                                                         "NKcells"="NK cell",
                                                                                         "Bcells"="B cell",
-                                                                                        "otherCells"="Uncharacterized cell",
-                                                                                        "CAFs"="Cancer associated fibroblast")))
+                                                                                        "otherCells"="uncharacterized cell",
+                                                                                        "CAFs"="Cancer associated fibroblast",
+                                                                                        "Endothelial"="Endothelial cell")))
   
   
   # Summarising all the same type of cells together
@@ -1334,145 +1376,14 @@ deconvolution_for_bootstrap_v4 <- function(deconv_table,
   return(res)
 }
 
-## Function to compare the spic cellFractions vs MRA proportions
-epic_deconvolution_comparison <- function(deconv_table,
-                                           deconv_tabe_epic, 
-                                           signature_reference, 
-                                           actual_cell_proportions,
-                                           actual_cell_proportions_epic)
-  
-{
-  
-  ## Calling the deconvolution methods
-  
-  # To be put in the generating matrix function, used in all of them
-  deconv_mat <- deconv_table %>% 
-    column_to_rownames(var = "HUGO") %>% 
-    drop_na()
-  
-  deconv_mat_epic <- deconv_table_epic %>% 
-    column_to_rownames(var = "HUGO") %>% 
-    drop_na()
-  
-  # Epic ( Using mRNA proportion as we are using in silico samples)
-  epic_4_cells <- EPIC(deconv_mat)
-  epic_res_4_cell_mrna=t(epic_4_cells$mRNAProportions) %>% 
-    #epic_res=t(epic$cellFractions) %>% 
-    as.data.frame() %>% 
-    rownames_to_column(var = "cell_type") %>% 
-    mutate(deconv_type="With 4 cell types \nmRNAProportions") %>% 
-    mutate(cell_type=case_when(cell_type=="CD4_Tcells"~"T cell",
-                               cell_type=="CD8_Tcells"~"T cell",
-                               cell_type=="Bcells"~"B cell",
-                               cell_type=="Macrophages"~"Macrophage",
-                               cell_type=="NKcells"~"NK cell",
-                               cell_type=="otherCells"~"Uncharacterized cell",
-                               cell_type=="CAFs"~"Cancer associated fibroblast",
-                               cell_type=="Endothelial"~"Endothelial cell")) %>% 
-    dplyr::group_by(deconv_type, cell_type) %>% 
-    dplyr::summarise_if(is.numeric, sum) %>% 
-    left_join(actual_cell_proportions %>% mutate(cell_type= sub("s$", "", cell_type)), 
-              by=c("cell_type"="cell_type")) 
-  
-  epic_res_4_cell_cellfrac=t(epic_4_cells$cellFractions) %>% 
-    as.data.frame() %>% 
-    rownames_to_column(var = "cell_type") %>% 
-    mutate(deconv_type="With 4 cell types \ncellFractions") %>% 
-    mutate(cell_type=case_when(cell_type=="CD4_Tcells"~"T cell",
-                               cell_type=="CD8_Tcells"~"T cell",
-                               cell_type=="Bcells"~"B cell",
-                               cell_type=="Macrophages"~"Macrophage",
-                               cell_type=="NKcells"~"NK cell",
-                               cell_type=="otherCells"~"Uncharacterized cell",
-                               cell_type=="CAFs"~"Cancer associated fibroblast",
-                               cell_type=="Endothelial"~"Endothelial cell")) %>% 
-    dplyr::group_by(deconv_type, cell_type) %>% 
-    dplyr::summarise_if(is.numeric, sum) %>% 
-    left_join(actual_cell_proportions %>% mutate(cell_type= sub("s$", "", cell_type)), 
-              by=c("cell_type"="cell_type")) 
-  
-  epic_3_cells <- EPIC(deconv_mat_epic)
-  epic_res_3_cell_mrna=t(epic_3_cells$mRNAProportions) %>% 
-    #epic_res=t(epic$cellFractions) %>% 
-    as.data.frame() %>% 
-    rownames_to_column(var = "cell_type") %>% 
-    mutate(deconv_type="With 3 cell types \nmRNAProportions") %>% 
-    mutate(cell_type=case_when(cell_type=="CD4_Tcells"~"T cell",
-                               cell_type=="CD8_Tcells"~"T cell",
-                               cell_type=="Bcells"~"B cell",
-                               cell_type=="Macrophages"~"Macrophage",
-                               cell_type=="NKcells"~"NK cell",
-                               cell_type=="otherCells"~"Uncharacterized cell",
-                               cell_type=="CAFs"~"Cancer associated fibroblast",
-                               cell_type=="Endothelial"~"Endothelial cell")) %>% 
-    dplyr::group_by(deconv_type, cell_type) %>% 
-    dplyr::summarise_if(is.numeric, sum) %>% 
-    left_join(actual_cell_proportions_epic %>% mutate(cell_type= sub("s$", "", cell_type)), 
-              by=c("cell_type"="cell_type")) 
-  
-  epic_res_3_cell_cellfrac=t(epic_3_cells$cellFractions) %>% 
-    as.data.frame() %>% 
-    rownames_to_column(var = "cell_type") %>% 
-    mutate(deconv_type="With 3 cell types \ncellFractions") %>% 
-    mutate(cell_type=case_when(cell_type=="CD4_Tcells"~"T cell",
-                               cell_type=="CD8_Tcells"~"T cell",
-                               cell_type=="Bcells"~"B cell",
-                               cell_type=="Macrophages"~"Macrophage",
-                               cell_type=="NKcells"~"NK cell",
-                               cell_type=="otherCells"~"Uncharacterized cell",
-                               cell_type=="CAFs"~"Cancer associated fibroblast",
-                               cell_type=="Endothelial"~"Endothelial cell")) %>% 
-    dplyr::group_by(deconv_type, cell_type) %>% 
-    dplyr::summarise_if(is.numeric, sum) %>% 
-    left_join(actual_cell_proportions_epic %>% mutate(cell_type= sub("s$", "", cell_type)), 
-              by=c("cell_type"="cell_type")) 
-
-  
-  print("All the deconvolutions completed successfully")
-  
-  # Making a singular quantitative table
-  
-  # Joining all the tables
-  quantitative_tables <- rbind(epic_res_4_cell_mrna,epic_res_4_cell_cellfrac,epic_res_3_cell_mrna,epic_res_3_cell_cellfrac)
-  
-  
-  print("All quantitative tables joined succesfully")
-  
-  # Grouping one of cells
-  quantitative_tables$cell_type<-str_replace_all(quantitative_tables$cell_type, fixed(c("T cell CD4+ (non-regulatory)" = "T cell" ,
-                                                                                        "T cell CD8+" = "T cell",
-                                                                                        "T cell regulatory (Tregs)" = "T cell",
-                                                                                        "T cell CD4+" = "T cell", 
-                                                                                        "Macrophage M1" = "Macrophage",    
-                                                                                        "Macrophage M2" = "Macrophage",
-                                                                                        "CD4_Tcells"="T cell",
-                                                                                        "CD8_Tcells"="T cell",
-                                                                                        "Macrophages"="Macrophage", 
-                                                                                        "NKcells"="NK cell",
-                                                                                        "Bcells"="B cell",
-                                                                                        "otherCells"="Uncharacterized cell",
-                                                                                        "CAFs"="Cancer associated fibroblast")))
-  
-  
-  # Summarising all the same type of cells together
-  summarised_quantitative_table = quantitative_tables %>% 
-    dplyr::group_by(deconv_type, cell_type) %>% 
-    dplyr::summarise_if(is.numeric, sum)
-  
-  print("Summarised quantitative table is being processed")
-  
-  # For Qualitative Plots
-  
-  return(summarised_quantitative_table)
-}
 
 #General theme for plots
 mytheme=list(theme_foundation(base_size=14, base_family="sans")
              + theme(plot.title = element_text(face = "bold",
                                                size = rel(1.2), hjust = 0.5),
                      text = element_text(),
-                     panel.background = element_rect(fill = "white", colour = NA),
-                     plot.background = element_rect(fill = "white", colour = NA),
+                     panel.background = element_rect(colour = NA),
+                     plot.background = element_rect(colour = NA),
                      panel.border = element_rect(colour = NA),
                      axis.title = element_text(face = "bold",size = rel(1)),
                      axis.title.y = element_text(angle=90,vjust =2),
