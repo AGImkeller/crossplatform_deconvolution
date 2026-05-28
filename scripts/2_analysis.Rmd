@@ -97,9 +97,37 @@ targeted_pan_cancer_panel=read_csv("../Data/gene_panels/Targeted_Visium_Human_Ov
 gene_panels= list("All detected \ngenes"=all_genes,"10x Visium \nWTA Probe-set"=tenX_genes,"Nanostring WTA"= nanostring_genes,"BD Rhapsody"= BD_genes,"Targeted \nImmunology"=targeted_human_immunology_panel,"Targeted \nPan-Cancer"=targeted_pan_cancer_panel)
 cell_types=c("B cell","T cell","Monocyte","NK cell")
 date="24032026"
+#date="21052026"
 column_character_specifications_for_mcp=NA
 ```
 
+
+# For the reviewer: High technical vs low technical gene panel
+```{r}
+#high_technical_genes= c(targeted_human_immunology_panel$V1,targeted_pan_cancer_panel$V1, BD_genes$V1)
+
+set.seed(528)
+# mid_technical_panel= targeted_human_immunology_panel %>% 
+#                      slice_sample(n = 528) %>% 
+#                      rbind(all_genes %>% 
+#                             filter(!V1 %in% high_technical_genes) %>% 
+#                              slice_sample(n=528))
+#write_delim(mid_technical_panel,"../Data/gene_panels/mid_technical_gene_panel.txt")
+
+# low_technical_genes= all_genes %>% 
+#                             filter(!V1 %in% high_technical_genes) %>% 
+#                              slice_sample(n=1056)
+# 
+# write_delim(low_technical_genes,"../Data/gene_panels/low_technical_gene_panel.txt")
+
+mid_technical_panel= read.delim("../Data/gene_panels/mid_technical_gene_panel.txt")
+low_technical_panel= read.delim("../Data/gene_panels/low_technical_gene_panel.txt")
+
+gene_panels= list("Targeted \nImmunology"=targeted_human_immunology_panel,"Mid technical"=mid_technical_panel,"Low technical"=low_technical_panel)
+cell_types=c("B cell","T cell","Monocyte","NK cell")
+date = "21052026_high_vs_low_technical_genes"
+column_character_specifications_for_mcp=NA
+```
 
 ```{r}
 
@@ -153,6 +181,7 @@ for (j in names(gene_panels))
 # Data Wrangling
 ```{r}
 cell2loc_gene_panel_res <- read_csv(paste0("../intermediate_data/cell2location_res/",tolower(analysis_type),"_gene_panel_24032026_benchmarking_results.csv"))
+
 #cell2loc_gene_panel_res <- read_csv("../intermediate_data/cell2location_res/pbmc_gene_panel_24032026_benchmarking_results_with_epic_pseudobulks.csv")
 
 gene_panel_res <- rbind(complete_gene_panel_benchmarking_list$`All detected \ngenes`,
@@ -178,6 +207,34 @@ gene_panel_res <- rbind(complete_gene_panel_benchmarking_list$`All detected \nge
 saveRDS(gene_panel_res, file = paste0("../Results/Gene_panel/",analysis_type,"_gene_panel_",date,".RDS")) 
 #saveRDS(gene_panel_res, file = paste0("../Results/Gene_panel/",analysis_type,"_gene_panel_epic_in_cellFraction_mode",date,".RDS")) 
 #saveRDS(gene_panel_res, file = paste0("../Results/Gene_panel/",analysis_type,"_gene_panel_with_epic_pseudobulks_",date,".RDS"))
+```
+
+# High vs low technical genes (for the reviewer)
+```{r}
+cell2loc_gene_panel_res <- read_csv(paste0("../intermediate_data/cell2location_res/",tolower(analysis_type),"_gene_panel_",date,"_benchmarking_results.csv")) %>% 
+  mutate(Gene_panel=ifelse(Gene_panel=="Mid technical gene panel","Mid technical",Gene_panel),
+         Gene_panel=ifelse(Gene_panel=="Low technical gene panel","Low technical",Gene_panel))
+
+unique(cell2loc_gene_panel_res$Gene_panel)
+
+gene_panel_res <- rbind(complete_gene_panel_benchmarking_list$`Targeted 
+Immunology`,
+complete_gene_panel_benchmarking_list$`Mid technical`,
+complete_gene_panel_benchmarking_list$`Low technical`,
+          cell2loc_gene_panel_res) %>% 
+          mutate(deconv_type = ifelse(deconv_type=="SpatialDecon (TME)\n cells unknown","SpatialDecon",deconv_type)) %>% 
+          mutate(deconv_type=factor(deconv_type, levels=c("quanTIseq",
+                                                          "EPIC",
+                                                          "MCPcounter*",
+                                                          "SPOTlight",
+                                                          "SpatialDecon",
+                                                           "RCTD",
+                                                           "cell2location"))) %>% 
+         mutate(Gene_panel=factor(Gene_panel, levels=c( "Targeted \nImmunology","Mid technical","Low technical")))
+
+#gene_panel_res=gene_panel_res %>% mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell", cell_type))
+
+saveRDS(gene_panel_res, file = paste0("../Results/Gene_panel/",analysis_type,"_gene_panel_",date,".RDS")) 
 ```
 
 # Testing Epic Results (mRNAProportions vs CellFractions)
@@ -392,9 +449,7 @@ signature_matrices=list("LM22"=lm22,
 # Using SpatialDecon
 ```{r}
 complete_signature_matrix_benchmarking_list =list(names(signature_matrices)) 
-
-    
-   signature_matrix_benchmarking_benchmarking <-data.frame()
+signature_matrix_benchmarking_benchmarking <-data.frame()
     
     # Filtering genes based on gene panels and normalising according to TPM
     deconv_table=bootstraped_data %>% 
@@ -417,7 +472,59 @@ save(comp_signature_matrix_res, file = paste0("../Results/Signature_Matrix/",ana
 
 # Spatialdecon signature matrix  with sequencing-depth
 ```{r}
-date="09042026"
+# date="21052026"
+# data_type="pbmc20k_sequencing_depth_cell_ranger"
+# 
+# # Pseudobulks generated from Chromium 10X
+# bootstraped_data=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/sequencing_depth_intermediate/",data_type,"_pseudobulks_09042026.RData"))
+# bootstraped_data_cell_counts=readRDS(paste0("../intermediate_data/bootstraped_pseudobulks/sequencing_depth_intermediate/",data_type,"_cell_proportions_09042026.RData"))
+# 
+# signature_reference <- readRDS("../intermediate_data/processed_sces/pbmc8k.rds")
+# cell_types=c("B cell","T cell","Monocyte","NK cell")
+# analysis_type="PBMC"
+# 
+# complete_signature_matrix_benchmarking_list =list(names(signature_matrices)) 
+# 
+#     
+#    signature_matrix_benchmarking_benchmarking <-data.frame()
+#     
+#     # Filtering genes based on gene panels and normalising according to TPM
+#     deconv_table=bootstraped_data %>% 
+#                  mutate(across(-1, ~ (.x / sum(.x, na.rm = TRUE)) * 1e6)) %>% 
+#                  rename_with(~sub(".Raw$", ".norm", .), ends_with(".Raw"))
+#     actual_cell_proportions= bootstraped_data_cell_counts
+#     
+#     # Deconvolution
+#     result_df <- signature_matrix_bootstrapping(deconv_table,cell_types, signature_reference, actual_cell_proportions)
+#     
+#     # Wrangling_data
+#     comp_signature_matrix_res= result_df %>%
+#           pivot_longer(cols = -c(deconv_type, cell_type),
+#                   names_to = c("Dataset", ".value"),
+#                   names_pattern = "^(.*_boot\\d+)\\.(norm|actual_values|actual_frac)$") %>% 
+#      dplyr::rename("Deconvolution_fraction"="norm") %>% 
+#      mutate(Sequencing_depth= case_when(str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.00002"~"0.002% reads",
+#                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.0002"~"0.02% reads",
+#                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.001"~"0.1% reads",
+#                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.01"~"1% reads",
+#                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.2"~"20% reads",
+#                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.4"~"40% reads",
+#                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.6"~"60% reads",
+#                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.8"~"80% reads",
+#                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="1"~"100% reads")) %>% 
+#     mutate(Sequencing_depth=factor(Sequencing_depth, levels=c("0.002% reads","0.02% reads","0.1% reads","1% reads","20% reads","40% reads","60% reads","80% reads","100% reads")))
+#  
+#     
+# test= comp_signature_matrix_res %>% 
+#   filter(deconv_type=="SafeTME") %>% 
+#   filter(Sequencing_depth=="0.002% reads")
+#     
+# save(comp_signature_matrix_res, file = paste0("../Results/Signature_Matrix/",analysis_type,"_signature_matrix_with_sequencing_depth.RData"))   
+```
+
+```{r}
+
+date="21052026"
 data_type="pbmc20k_sequencing_depth_cell_ranger"
 
 # Pseudobulks generated from Chromium 10X
@@ -428,27 +535,52 @@ signature_reference <- readRDS("../intermediate_data/processed_sces/pbmc8k.rds")
 cell_types=c("B cell","T cell","Monocyte","NK cell")
 analysis_type="PBMC"
 
-complete_signature_matrix_benchmarking_list =list(names(signature_matrices)) 
 
+column_character_specifications=c("0.00002","0.0002","0.001","0.01","0.2","0.4","0.6","0.8","_1_")
+
+complete_signature_matrix_benchmarking_with_seq_depth_list  =list(names(column_character_specifications)) 
+
+for (i in column_character_specifications) 
+{
+deconv_table=bootstraped_data %>%
+             select(HUGO, contains(i)) %>% 
+                 mutate(across(-1, ~ (.x / sum(.x, na.rm = TRUE)) * 1e6))
+
+
+
+actual_cell_proportions= bootstraped_data_cell_counts%>%
+                  select(cell_type,contains(i))
     
-   signature_matrix_benchmarking_benchmarking <-data.frame()
-    
-    # Filtering genes based on gene panels and normalising according to TPM
-    deconv_table=bootstraped_data %>% 
-                 mutate(across(-1, ~ (.x / sum(.x, na.rm = TRUE)) * 1e6)) %>% 
-                 rename_with(~sub(".Raw$", ".norm", .), ends_with(".Raw"))
-    actual_cell_proportions= bootstraped_data_cell_counts
-    
-    # Deconvolution
-    result_df <- signature_matrix_bootstrapping(deconv_table,cell_types, signature_reference, actual_cell_proportions)
-    
-    # Wrangling_data
-    comp_signature_matrix_res= result_df %>%
-          pivot_longer(cols = -c(deconv_type, cell_type),
+# Deconvolution
+result_df <- signature_matrix_bootstrapping(deconv_table,cell_types, signature_reference, actual_cell_proportions)
+
+# Wrangling_data
+comp_sequencing_depth_res= result_df %>%
+      pivot_longer(cols = -c(deconv_type, cell_type),
                   names_to = c("Dataset", ".value"),
-                  names_pattern = "^(.*_boot\\d+)\\.(norm|actual_values|actual_frac)$") %>% 
-     dplyr::rename("Deconvolution_fraction"="norm") %>% 
-     mutate(Sequencing_depth= case_when(str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.00002"~"0.002% reads",
+                  names_pattern = "^(.*_boot\\d+)\\.(Raw|actual_values|actual_frac)$") %>% 
+                  # for real data
+                  # names_sep = "\\.") %>% 
+     dplyr::rename("Deconvolution_fraction"="Raw") %>% 
+                    mutate(Sequencing_depth=i)
+  
+    
+    # Adding to list
+    complete_signature_matrix_benchmarking_with_seq_depth_list[[i]] = comp_sequencing_depth_res
+    print(paste(i,"Sequencing depth completed"))
+}
+
+# Wrangling_data
+signature_with_sequencing_depth_res <- rbind(complete_signature_matrix_benchmarking_with_seq_depth_list$`0.00002`,
+          complete_signature_matrix_benchmarking_with_seq_depth_list$`0.0002`,
+          complete_signature_matrix_benchmarking_with_seq_depth_list$`0.001`,
+          complete_signature_matrix_benchmarking_with_seq_depth_list$`0.01`,
+          complete_signature_matrix_benchmarking_with_seq_depth_list$`0.2`,
+          complete_signature_matrix_benchmarking_with_seq_depth_list$`0.4`,
+          complete_signature_matrix_benchmarking_with_seq_depth_list$`0.6`,
+          complete_signature_matrix_benchmarking_with_seq_depth_list$`0.8`,
+          complete_signature_matrix_benchmarking_with_seq_depth_list$`_1_`) %>% 
+  mutate(Sequencing_depth= case_when(str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.00002"~"0.002% reads",
                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.0002"~"0.02% reads",
                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.001"~"0.1% reads",
                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.01"~"1% reads",
@@ -457,11 +589,32 @@ complete_signature_matrix_benchmarking_list =list(names(signature_matrices))
                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.6"~"60% reads",
                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="0.8"~"80% reads",
                                        str_extract(Dataset, "(?<=_)[0-9.]+(?=_)")=="1"~"100% reads")) %>% 
+                    mutate(deconv_type=factor(deconv_type)) %>% 
     mutate(Sequencing_depth=factor(Sequencing_depth, levels=c("0.002% reads","0.02% reads","0.1% reads","1% reads","20% reads","40% reads","60% reads","80% reads","100% reads")))
- 
-    
-save(comp_signature_matrix_res, file = paste0("../Results/Signature_Matrix/",analysis_type,"_signature_matrix_with_sequencing_depth.RData"))   
+
+date="21052026"
+save(signature_with_sequencing_depth_res, file = paste0("../Results/Signature_Matrix/",analysis_type,"_signature_matrix_with_sequencing_depth_",date,".RData")) 
 ```
+
+```{r}
+test=bootstraped_data %>%
+             select(HUGO, contains("1")) %>% 
+             filter(HUGO %in% rownames(til10)) %>% 
+             column_to_rownames(var="HUGO") %>% 
+             mutate(total = rowSums(across(everything()))) %>% 
+             filter(total>0)
+
+# 0.00002 = 43 of 170 genes present TIL10
+# 0.0002 = 105 of 170 genes present TIL10
+# 0.001 = 143 of 170 genes present TIL10
+# 0.01 = 160 of 170 genes present TIL10
+# 0.2= 164 of 170 genes present TIL10
+# 0.4= 164 of 170 genes present TIL10
+# 0.6= 164 of 170 genes present TIL10
+# 0.8= 164 of 170 genes present TIL10
+# 1= 164 of 170 genes present TIL10
+```
+
 
 # Spot Size
 ```{r}

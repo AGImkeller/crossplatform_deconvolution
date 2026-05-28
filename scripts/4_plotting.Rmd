@@ -437,8 +437,8 @@ shape_manual= c("All detected \ngenes"=65,
 
 # PBMC
 analysis_type="PBMC"
-#gene_panel=readRDS("../Results/Gene_panel/PBMC_gene_panel_with_epic_pseudobulks_24032026.RDS") 
-gene_panel=readRDS("../Results/Gene_panel/PBMC_gene_panel_24032026.RDS") 
+gene_panel=readRDS("../Results/Gene_panel/PBMC_gene_panel_with_epic_pseudobulks_24032026.RDS") 
+#gene_panel=readRDS("../Results/Gene_panel/PBMC_gene_panel_21052026.RDS") 
 gene_panel=gene_panel %>%
   mutate(Gene_panel = fct_recode(Gene_panel,"Immuno-Oncology \n Xenium Panel" = "Xenium \nImmuno-Oncology Panel")) %>% 
   mutate(deconv_type=as.character(deconv_type)) %>% 
@@ -479,6 +479,34 @@ gene_panel_aml=gene_panel_aml %>%
 
 correlation_plots(gene_panel_aml,"Gene_panel",analysis_type)
 plotting_clr_and_mean_aitchison_plots(gene_panel_aml,parameter,analysis_type, cell_types,shape_manual,color_manual)
+
+
+# High Technical vs Low technical genes
+
+shape_manual= c("Targeted \nImmunology"= 73,
+                "Mid technical"=77,
+                "Low technical"=76)
+
+analysis_type="PBMC_high_vs_low_technical_genes"
+gene_panel=readRDS("../Results/Gene_panel/PBMC_gene_panel_21052026_high_vs_low_technical_genes.RDS") 
+
+gene_panel=gene_panel %>%
+  #mutate(Gene_panel = fct_recode(Gene_panel,"Immuno-Oncology \n Xenium Panel" = "Xenium \nImmuno-Oncology Panel")) %>% 
+  mutate(deconv_type=as.character(deconv_type)) %>% 
+  mutate(cell_type=ifelse(cell_type=="uncharacterized cell","Uncharacterized cell",cell_type)) %>% 
+  filter(deconv_type != "SpatialDecon \n custom signature") %>% 
+  mutate(deconv_type = ifelse(deconv_type=="SpatialDecon \n default signature", "SpatialDecon", deconv_type)) %>% 
+  mutate(deconv_type=factor(deconv_type,levels=c("quanTIseq",
+                                                "EPIC",
+                                                 "MCPcounter*",
+                                                 "SPOTlight",
+                                                 "SpatialDecon",
+                                                "RCTD",
+                                                "cell2location"))) %>% 
+  mutate(Gene_panel = droplevels(Gene_panel))
+
+correlation_plots(gene_panel,"Gene_panel",analysis_type)
+plotting_clr_and_mean_aitchison_plots(gene_panel,parameter,analysis_type, cell_types,shape_manual,color_manual)
 
 
 # Different EPIC mode comparions
@@ -723,10 +751,14 @@ color_manual=c("Custom \nSignature"="#59a89c",
 parameter="Sequencing_depth"
 cell_types=c("B cell","T cell","NK cell","Monocyte")
 analysis_type="PBMC_signature_with_sequencing"
- load("../Results/Signature_Matrix/PBMC_signature_matrix_with_sequencing_depth.RData") 
-           
-   
-sig_mat= comp_signature_matrix_res %>% 
+# load("../Results/Signature_Matrix/PBMC_signature_matrix_with_sequencing_depth.RData") 
+ load("../Results/Signature_Matrix/PBMC_signature_matrix_with_sequencing_depth_21052026.RData") 
+ 
+ 
+ 
+sig_mat= #comp_signature_matrix_res %>% 
+  signature_with_sequencing_depth_res %>% 
+  mutate(deconv_type=as.character(deconv_type)) %>% 
    mutate(deconv_type=ifelse(deconv_type=="Custom","Custom \nSignature",deconv_type)) %>% 
    mutate(deconv_type=factor(deconv_type, levels = c("Custom \nSignature","Immunostates","LM22","SafeTME","TIL10"))) %>% 
            dplyr::filter(Sequencing_depth %in% c("100% reads","60% reads","20% reads","1% reads", "0.02% reads","0.002% reads") ) %>% 
